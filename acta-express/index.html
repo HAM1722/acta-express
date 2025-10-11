@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Acta Express</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="stylesheet" href="./styles.css" />
+  <meta name="theme-color" content="#0ea5e9" />
+  <!-- Tailwind (ligero vía CDN para prototipo) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Libs -->
+  <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.2.0/dist/signature_pad.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <header class="p-4 bg-sky-600 text-white shadow">
+    <h1 class="text-xl font-semibold">Acta Express</h1>
+    <p class="text-sm opacity-90">Visita de fidelización – Firma en sitio – PDF – Excel maestro</p>
+  </header>
+
+  <main class="p-4 space-y-6 max-w-3xl mx-auto">
+    <!-- Aviso PWA / offline -->
+    <div id="pwaHint" class="hidden bg-amber-50 border border-amber-200 p-3 rounded text-amber-700 text-sm"></div>
+
+    <!-- Config rápida -->
+    <section class="card">
+      <h2 class="card-title">Configuración</h2>
+      <div class="grid gap-3 md:grid-cols-2">
+        <div>
+          <label class="lbl">Mi nombre (Ejecutivo)</label>
+          <input id="cfgEjecutivo" class="inp" placeholder="Tu nombre" />
+        </div>
+        <div>
+          <label class="lbl">Mi correo (CC)</label>
+          <input id="cfgCorreo" class="inp" placeholder="tucorreo@empresa.com" />
+        </div>
+        <div class="md:col-span-2 flex items-center gap-2">
+          <input id="cfgGeo" type="checkbox" class="accent-sky-600" />
+          <label for="cfgGeo" class="text-sm">Incluir ubicación (geo) en las actas</label>
+        </div>
+      </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button id="btnGuardarCfg" class="btn">Guardar configuración</button>
+        <button id="btnElegirExcel" class="btn btn-outline" title="Opción A – Android/Chrome">Elegir/crear Excel maestro</button>
+        <button id="btnLimpiarExcelHandle" class="btn btn-ghost">Olvidar Excel maestro</button>
+      </div>
+      <p id="excelEstado" class="text-xs text-slate-500 mt-2"></p>
+    </section>
+
+    <!-- Formulario Express -->
+    <section class="card">
+      <h2 class="card-title">Nueva Acta de Visita</h2>
+      
+      <!-- Datos del Ejecutivo y Ubicación -->
+      <div class="mt-3">
+        <h3 class="text-sm font-semibold text-slate-600 mb-2">📍 Datos del Ejecutivo y Ubicación</h3>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div>
+            <label class="lbl">Zona</label>
+            <input id="zona" class="inp" placeholder="Ej: Norte, Sur, Centro" />
+          </div>
+          <div>
+            <label class="lbl">Barrio</label>
+            <input id="barrio" class="inp" placeholder="Nombre del barrio" />
+          </div>
+          <div class="md:col-span-2">
+            <label class="lbl">Dirección</label>
+            <input id="direccion" class="inp" placeholder="Dirección completa" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Datos del Cliente/Negocio -->
+      <div class="mt-4">
+        <h3 class="text-sm font-semibold text-slate-600 mb-2">🏢 Datos del Cliente/Negocio</h3>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div>
+            <label class="lbl">Número de Contrato</label>
+            <input id="numeroContrato" class="inp" placeholder="Número de contrato" />
+          </div>
+          <div>
+            <label class="lbl">NIT</label>
+            <input id="cliNit" class="inp" placeholder="NIT del cliente" />
+          </div>
+          <div>
+            <label class="lbl">Actividad Económica</label>
+            <input id="actividadEconomica" class="inp" placeholder="Ej: Comercio, Manufactura" />
+          </div>
+          <div>
+            <label class="lbl">Exención de Contribución</label>
+            <select id="exencionContribucion" class="inp">
+              <option value="">Seleccione...</option>
+              <option value="Sí">Sí</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Datos Persona Encargada -->
+      <div class="mt-4">
+        <h3 class="text-sm font-semibold text-slate-600 mb-2">👤 Datos de la Persona Encargada</h3>
+        <div class="grid gap-3 md:grid-cols-2">
+          <div>
+            <label class="lbl">Contacto (Nombre)</label>
+            <input id="contactoNombre" class="inp" placeholder="Nombre del contacto" />
+          </div>
+          <div>
+            <label class="lbl">Cargo</label>
+            <input id="contactoCargo" class="inp" placeholder="Cargo" />
+          </div>
+          <div>
+            <label class="lbl">Correo Electrónico</label>
+            <input id="contactoCorreo" class="inp" type="email" placeholder="correo@ejemplo.com" />
+          </div>
+          <div>
+            <label class="lbl">Celular</label>
+            <input id="contactoCelular" class="inp" type="tel" placeholder="Número de celular" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Temas a Tratar -->
+      <div class="mt-4">
+        <h3 class="text-sm font-semibold text-slate-600 mb-2">✅ Temas Tratados con el Cliente</h3>
+        <div class="space-y-3">
+          <div>
+            <label class="flex items-center gap-2 text-sm mb-1">
+              <input type="checkbox" id="temaEnergiaEficiente" class="accent-sky-600" />
+              <span>Energía eficiente</span>
+            </label>
+            <textarea id="descEnergiaEficiente" class="inp text-sm" rows="2" placeholder="Describe lo tratado sobre energía eficiente..." disabled></textarea>
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm mb-1">
+              <input type="checkbox" id="temaConexionEmcali" class="accent-sky-600" />
+              <span>Conexión directa con Emcali</span>
+            </label>
+            <textarea id="descConexionEmcali" class="inp text-sm" rows="2" placeholder="Describe lo tratado sobre conexión directa..." disabled></textarea>
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm mb-1">
+              <input type="checkbox" id="temaEtiquetaRetiq" class="accent-sky-600" />
+              <span>Etiqueta RETIQ</span>
+            </label>
+            <textarea id="descEtiquetaRetiq" class="inp text-sm" rows="2" placeholder="Describe lo tratado sobre etiqueta RETIQ..." disabled></textarea>
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm mb-1">
+              <input type="checkbox" id="temaAhorroEnergia" class="accent-sky-600" />
+              <span>Ahorro de energía</span>
+            </label>
+            <textarea id="descAhorroEnergia" class="inp text-sm" rows="2" placeholder="Describe lo tratado sobre ahorro de energía..." disabled></textarea>
+          </div>
+          <div>
+            <label class="flex items-center gap-2 text-sm mb-1">
+              <input type="checkbox" id="temaConsumoEnergia" class="accent-sky-600" />
+              <span>Consumo de energía</span>
+            </label>
+            <textarea id="descConsumoEnergia" class="inp text-sm" rows="2" placeholder="Describe lo tratado sobre consumo de energía..." disabled></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Incidencias -->
+      <div class="mt-4">
+        <h3 class="text-sm font-semibold text-slate-600 mb-2">⚠️ Incidencias</h3>
+        <div class="space-y-3">
+          <div class="grid gap-3 md:grid-cols-3 items-end">
+            <div class="md:col-span-2">
+              <label class="lbl">¿Ha tenido variaciones y fluctuaciones?</label>
+              <select id="incVariaciones" class="inp">
+                <option value="">Seleccione...</option>
+                <option value="No">No</option>
+                <option value="Sí">Sí</option>
+              </select>
+            </div>
+            <div>
+              <label class="lbl">¿Cuántas?</label>
+              <input id="incVariacionesCant" class="inp" type="number" min="0" placeholder="0" disabled />
+            </div>
+          </div>
+          <div class="grid gap-3 md:grid-cols-3 items-end">
+            <div class="md:col-span-2">
+              <label class="lbl">¿Ha tenido cortes de suministro de energía?</label>
+              <select id="incCortes" class="inp">
+                <option value="">Seleccione...</option>
+                <option value="No">No</option>
+                <option value="Sí">Sí</option>
+              </select>
+            </div>
+            <div>
+              <label class="lbl">¿Cuántas?</label>
+              <input id="incCortesCant" class="inp" type="number" min="0" placeholder="0" disabled />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Observaciones -->
+      <div class="mt-4">
+        <label class="lbl">Observaciones Generales</label>
+        <textarea id="observaciones" class="inp" rows="4" placeholder="Observaciones adicionales de la visita..."></textarea>
+      </div>
+
+      <div class="mt-4 flex items-center gap-2">
+        <input id="consent" type="checkbox" class="accent-sky-600" />
+        <label for="consent" class="text-sm">El cliente autoriza el registro y envío del acta</label>
+      </div>
+
+      <div class="mt-6">
+        <h3 class="text-sm font-semibold text-slate-600 mb-2">Firma del cliente</h3>
+        <div class="bg-white border rounded-lg p-3">
+          <div class="flex gap-2 items-center text-xs text-slate-500 mb-2">
+            <span>Firme con el dedo dentro del recuadro</span>
+            <button id="btnLimpiarFirma" class="ml-auto btn btn-ghost btn-xs">Limpiar</button>
+          </div>
+          <div class="border rounded overflow-hidden">
+            <canvas id="pad" style="width:100%; height:240px; display:block; touch-action:none;"></canvas>
+          </div>
+          <div class="mt-3">
+            <label class="lbl">Nombre del firmante</label>
+            <input id="firmanteNombre" class="inp" />
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-6 flex flex-wrap gap-2">
+        <button id="btnGenerarPDF" class="btn">Generar PDF</button>
+        <button id="btnCompartir" class="btn btn-outline">Compartir (Outlook)</button>
+        <button id="btnDescargarPDF" class="btn btn-ghost">📥 Descargar PDF</button>
+        <button id="btnGuardarExcel" class="btn btn-ghost">Actualizar Excel maestro</button>
+      </div>
+      <p id="estado" class="text-xs text-slate-500 mt-2"></p>
+    </section>
+
+    <!-- Historial -->
+    <section class="card">
+      <h2 class="card-title">Historial</h2>
+      <div class="mb-3">
+        <a href="./dashboard.html" class="btn btn-outline btn-sm">📊 Ver Dashboard y Reportes</a>
+      </div>
+      <div id="historial" class="space-y-2 text-sm"></div>
+    </section>
+  </main>
+
+  <script>
+    // Habilitar/deshabilitar campos según selección
+    document.addEventListener('DOMContentLoaded', ()=>{
+      // Incidencias
+      const incVariaciones = document.getElementById('incVariaciones');
+      const incVariacionesCant = document.getElementById('incVariacionesCant');
+      const incCortes = document.getElementById('incCortes');
+      const incCortesCant = document.getElementById('incCortesCant');
+      
+      incVariaciones.addEventListener('change', ()=>{
+        incVariacionesCant.disabled = incVariaciones.value !== 'Sí';
+        if(incVariaciones.value !== 'Sí') incVariacionesCant.value = '';
+      });
+      
+      incCortes.addEventListener('change', ()=>{
+        incCortesCant.disabled = incCortes.value !== 'Sí';
+        if(incCortes.value !== 'Sí') incCortesCant.value = '';
+      });
+
+      // Temas tratados
+      const temas = [
+        { checkbox: 'temaEnergiaEficiente', textarea: 'descEnergiaEficiente' },
+        { checkbox: 'temaConexionEmcali', textarea: 'descConexionEmcali' },
+        { checkbox: 'temaEtiquetaRetiq', textarea: 'descEtiquetaRetiq' },
+        { checkbox: 'temaAhorroEnergia', textarea: 'descAhorroEnergia' },
+        { checkbox: 'temaConsumoEnergia', textarea: 'descConsumoEnergia' }
+      ];
+
+      temas.forEach(tema => {
+        const checkbox = document.getElementById(tema.checkbox);
+        const textarea = document.getElementById(tema.textarea);
+        
+        checkbox.addEventListener('change', ()=>{
+          textarea.disabled = !checkbox.checked;
+          if(!checkbox.checked) textarea.value = '';
+        });
+      });
+    });
+  </script>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
+
+

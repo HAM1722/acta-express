@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Acta Express</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="bg-slate-50 text-slate-800">
+    <header class="p-4 bg-sky-600 text-white shadow">
+        <h1 class="text-xl font-semibold">📊 Dashboard Acta Express</h1>
+        <p class="text-sm opacity-90">Análisis y reportes de actas de visita</p>
+    </header>
+
+    <main class="p-4 space-y-6 max-w-7xl mx-auto">
+        <!-- Cargar Datos -->
+        <section class="card">
+            <h2 class="card-title">📊 Análisis de Actas</h2>
+            <div class="flex flex-wrap gap-3">
+                <button id="btnCargarDatos" class="btn">🔄 Cargar Datos del Historial</button>
+                <button id="btnGenerarReporte" class="btn btn-outline" disabled>📄 Generar Reporte Excel</button>
+                <button id="btnExportarExcelMaestro" class="btn btn-ghost">📥 Exportar Excel Maestro</button>
+                <button id="btnBorrarTodas" class="btn btn-ghost text-red-600 hover:bg-red-50">🗑️ Borrar Todas las Actas</button>
+                <button id="btnDebug" class="btn btn-ghost">🐛 Debug</button>
+            </div>
+            <p id="estadoDatos" class="text-xs text-slate-500 mt-2"></p>
+        </section>
+
+        <!-- Resumen General -->
+        <div id="resumenGeneral" class="hidden grid gap-4 md:grid-cols-4">
+            <div class="card bg-blue-50 border-blue-200">
+                <div class="text-2xl font-bold text-blue-600" id="totalActas">0</div>
+                <div class="text-sm text-blue-800">Total Actas</div>
+            </div>
+            <div class="card bg-green-50 border-green-200">
+                <div class="text-2xl font-bold text-green-600" id="totalCompromisos">0</div>
+                <div class="text-sm text-green-800">Zonas Únicas</div>
+            </div>
+            <div class="card bg-purple-50 border-purple-200">
+                <div class="text-2xl font-bold text-purple-600" id="clientesUnicos">0</div>
+                <div class="text-sm text-purple-800">Contactos Únicos</div>
+            </div>
+            <div class="card bg-orange-50 border-orange-200">
+                <div class="text-2xl font-bold text-orange-600" id="promedioCompromisos">0</div>
+                <div class="text-sm text-orange-800">Promedio Temas/Acta</div>
+            </div>
+        </div>
+
+        <!-- Gráficos -->
+        <div id="graficos" class="hidden grid gap-6 md:grid-cols-2">
+            <!-- Actas por Mes -->
+            <div class="card">
+                <h3 class="card-title">📅 Actas por Mes</h3>
+                <canvas id="chartActasMes" width="400" height="200"></canvas>
+            </div>
+
+            <!-- Zonas de Visita -->
+            <div class="card">
+                <h3 class="card-title">🎯 Zonas de Visita</h3>
+                <canvas id="chartMotivos" width="400" height="200"></canvas>
+            </div>
+
+            <!-- Top Contactos -->
+            <div class="card">
+                <h3 class="card-title">🏆 Top 10 Contactos</h3>
+                <canvas id="chartTopClientes" width="400" height="200"></canvas>
+            </div>
+
+            <!-- Temas Tratados -->
+            <div class="card">
+                <h3 class="card-title">✅ Temas Tratados</h3>
+                <canvas id="chartCompromisosEstado" width="400" height="200"></canvas>
+            </div>
+        </div>
+
+        <!-- Tablas de Datos -->
+        <div id="tablas" class="hidden space-y-6">
+            <!-- Tabla de Actas Recientes -->
+            <section class="card">
+                <h3 class="card-title">📋 Actas Recientes</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-100">
+                            <tr>
+                                <th class="p-2 text-left">ID</th>
+                                <th class="p-2 text-left">Contacto</th>
+                                <th class="p-2 text-left">Fecha</th>
+                                <th class="p-2 text-left">Contrato</th>
+                                <th class="p-2 text-left">Zona</th>
+                                <th class="p-2 text-left">Ejecutivo</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaActasRecientes">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Tabla de Compromisos Pendientes -->
+            <section class="card">
+                <h3 class="card-title">⏰ Compromisos Pendientes</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-slate-100">
+                            <tr>
+                                <th class="p-2 text-left">ID Acta</th>
+                                <th class="p-2 text-left">Cliente</th>
+                                <th class="p-2 text-left">Compromiso</th>
+                                <th class="p-2 text-left">Fecha Límite</th>
+                                <th class="p-2 text-left">Estado</th>
+                                <th class="p-2 text-left">Días Vencido</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaCompromisosPendientes">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- Filtros -->
+        <div id="filtros" class="hidden card">
+            <h3 class="card-title">🔍 Filtros</h3>
+            <div class="grid gap-4 md:grid-cols-4">
+                <div>
+                    <label class="lbl">Fecha Desde</label>
+                    <input type="date" id="filtroFechaDesde" class="inp">
+                </div>
+                <div>
+                    <label class="lbl">Fecha Hasta</label>
+                    <input type="date" id="filtroFechaHasta" class="inp">
+                </div>
+                <div>
+                    <label class="lbl">Zona</label>
+                    <select id="filtroMotivo" class="inp">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="lbl">Ejecutivo</label>
+                    <select id="filtroEjecutivo" class="inp">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-3 flex gap-2">
+                <button id="btnAplicarFiltros" class="btn">Aplicar Filtros</button>
+                <button id="btnLimpiarFiltros" class="btn btn-outline">Limpiar</button>
+            </div>
+        </div>
+    </main>
+
+    <script src="./dashboard.js"></script>
+</body>
+</html>

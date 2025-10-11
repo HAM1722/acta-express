@@ -1,0 +1,14 @@
+:root{ --sky:#0ea5e9; --ink:#0f172a; --muted:#64748b; }
+body{ font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+.card{ background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px; box-shadow: 0 2px 8px rgba(2,6,23,0.04); }
+.card-title{ font-size:1rem; font-weight:700; color:#0f172a; margin-bottom:10px; }
+.lbl{ display:block; font-size:.8rem; color:#334155; margin-bottom:6px; }
+.inp{ width:100%; background:#fff; border:1px solid #cbd5e1; border-radius:10px; padding:10px 12px; font-size:.95rem; }
+.btn{ background:var(--sky); color:#fff; padding:10px 14px; border-radius:10px; font-weight:600; }
+.btn:hover{ filter:brightness(0.95); }
+.btn-outline{ background:#fff; color:var(--sky); border:1px solid var(--sky); }
+.btn-ghost{ background:transparent; color:#0f172a; border:1px dashed #cbd5e1; }
+.btn-xs{ padding:6px 8px; font-size:.8rem; }
+.chip{ background:#f1f5f9; border:1px solid #e2e8f0; border-radius:999px; padding:6px 12px; font-size:.85rem; }
+.chip:active{ transform:scale(.98); }
+
