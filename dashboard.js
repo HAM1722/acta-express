@@ -129,6 +129,7 @@ async function loadDataFromIndexedDB(){
           zona: acta.ubicacion?.zona || '',
           barrio: acta.ubicacion?.barrio || '',
           direccion: acta.ubicacion?.direccion || '',
+          nombre_empresa: acta.cliente?.nombreEmpresa || '',
           numero_contrato: acta.cliente?.numeroContrato || '',
           cliente_nit: acta.cliente?.nit || '',
           actividad_economica: acta.cliente?.actividadEconomica || '',
@@ -170,6 +171,7 @@ async function loadDataFromIndexedDB(){
           zona: '',
           barrio: '',
           direccion: '',
+          nombre_empresa: '',
           numero_contrato: '',
           cliente_nit: acta.cliente?.nit || '',
           actividad_economica: '',
@@ -589,6 +591,7 @@ function llenarTablaActasRecientes(){
     row.className = 'border-b hover:bg-slate-50';
     row.innerHTML = `
       <td class="p-2 font-mono text-xs">${acta.id_acta || '-'}</td>
+      <td class="p-2">${acta.nombre_empresa || '-'}</td>
       <td class="p-2">${acta.contacto_nombre || '-'}</td>
       <td class="p-2 text-sm">${formatearFecha(acta.fecha_local)}</td>
       <td class="p-2">${acta.numero_contrato || '-'}</td>
