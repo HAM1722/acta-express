@@ -47,7 +47,8 @@ async function init(){
 
 function bindUI(){
   $('#btnCargarDatos').addEventListener('click', loadDataFromIndexedDB);
-  $('#btnGenerarReporte').addEventListener('click', generarReportePDF);
+  $('#btnGenerarReportePDF').addEventListener('click', generarDashboardPDF);
+  $('#btnGenerarReporte').addEventListener('click', generarReporteExcel);
   $('#btnExportarExcelMaestro').addEventListener('click', exportarExcelMaestro);
   $('#btnDebug').addEventListener('click', debugInfo);
   $('#btnAplicarFiltros').addEventListener('click', aplicarFiltros);
@@ -133,7 +134,11 @@ async function loadDataFromIndexedDB(){
           numero_contrato: acta.cliente?.numeroContrato || '',
           cliente_nit: acta.cliente?.nit || '',
           actividad_economica: acta.cliente?.actividadEconomica || '',
+          consumo_kwh: acta.cliente?.consumoKwh || '',
+          tiene_consumo_kvar: acta.cliente?.tieneConsumoKvar || '',
+          consumo_kvar: acta.cliente?.consumoKvar || '',
           exencion_contribucion: acta.cliente?.exencionContribucion || '',
+          fecha_actualizacion: acta.cliente?.fechaActualizacion || '',
           contacto_nombre: acta.contacto?.nombre || '',
           contacto_cargo: acta.contacto?.cargo || '',
           contacto_correo: acta.contacto?.correo || '',
@@ -242,6 +247,7 @@ async function loadDataFromIndexedDB(){
     llenarTablas();
     
     $('#btnGenerarReporte').disabled = false;
+    $('#btnGenerarReportePDF').disabled = false;
     
   }catch(err){
     console.error(err);
@@ -666,7 +672,7 @@ function ensureSheets(wb){
     const ws = XLSX.utils.aoa_to_sheet([[
       'id_acta','fecha_local','fecha_utc','ejecutivo_nombre','ejecutivo_correo',
       'zona','barrio','direccion',
-      'numero_contrato','nit','actividad_economica','exencion_contribucion',
+      'nombre_empresa','numero_contrato','nit','actividad_economica','consumo_kwh','tiene_consumo_kvar','consumo_kvar','exencion_contribucion','fecha_actualizacion',
       'contacto_nombre','contacto_cargo','contacto_correo','contacto_celular',
       'tema_energia_eficiente','desc_energia_eficiente',
       'tema_conexion_emcali','desc_conexion_emcali',
@@ -697,10 +703,15 @@ function mergeRowsIntoSheets(wb, actas){
       a.ubicacion?.zona||'',
       a.ubicacion?.barrio||'',
       a.ubicacion?.direccion||'',
+      a.cliente?.nombreEmpresa||'',
       a.cliente?.numeroContrato||'',
       a.cliente?.nit||'',
       a.cliente?.actividadEconomica||'',
+      a.cliente?.consumoKwh||'',
+      a.cliente?.tieneConsumoKvar||'',
+      a.cliente?.consumoKvar||'',
       a.cliente?.exencionContribucion||'',
+      a.cliente?.fechaActualizacion||'',
       a.contacto?.nombre||'',
       a.contacto?.cargo||'',
       a.contacto?.correo||'',
@@ -732,8 +743,8 @@ function mergeRowsIntoSheets(wb, actas){
     XLSX.utils.sheet_add_aoa(wsA, rowsA, { origin: -1 });
   }
 
-  // Ajuste de rango - 37 columnas
-  const totalCols = 37;
+  // Ajuste de rango - 42 columnas (agregadas: consumo_kwh, tiene_consumo_kvar, consumo_kvar, fecha_actualizacion, nombre_empresa)
+  const totalCols = 42;
   wsA['!ref'] = wsA['!ref'] || `A1:${XLSX.utils.encode_col(totalCols-1)}${1+rowsA.length}`;
 }
 
@@ -836,13 +847,11 @@ function toast(msg){
   }, 3000);
 }
 
-// ===== REPORTE PDF =====
-async function generarReportePDF(){
+// ===== REPORTE EXCEL =====
+async function generarReporteExcel(){
   try{
-    toast('📄 Generando reporte PDF...');
+    toast('📊 Generando reporte Excel...');
     
-    // Aquí podrías implementar la generación de PDF usando jsPDF
-    // Por ahora, exportar a Excel
     const workbook = XLSX.utils.book_new();
     
     // Hoja de resumen
@@ -874,6 +883,171 @@ async function generarReportePDF(){
     
   }catch(err){
     console.error(err);
-    toast('❌ Error generando reporte');
+    toast('❌ Error generando reporte Excel');
+  }
+}
+
+// ===== DASHBOARD PDF =====
+async function generarDashboardPDF(){
+  try{
+    toast('📄 Generando dashboard PDF...');
+    
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'pt', format:'a4' });
+    const L = 40, T = 40, W = 515;
+    let y = T;
+    const lineHeight = 14;
+    
+    // Función helper
+    function addText(text, isTitle = false) {
+      if(isTitle) {
+        doc.setFont('helvetica','bold');
+        doc.setFontSize(12);
+      } else {
+        doc.setFont('helvetica','normal');
+        doc.setFontSize(10);
+      }
+      const lines = doc.splitTextToSize(text, W);
+      
+      // Verificar si necesitamos nueva página
+      if(y + (lines.length * lineHeight) > 800) {
+        doc.addPage();
+        y = T;
+      }
+      
+      doc.text(lines, L, y);
+      y += lines.length * lineHeight + (isTitle ? 5 : 0);
+    }
+    
+    function addSection() {
+      y += 15;
+      if(y > 780) {
+        doc.addPage();
+        y = T;
+      }
+    }
+    
+    // Encabezado
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(16);
+    doc.text('DASHBOARD ACTA EXPRESS - REPORTE', L, y);
+    y += 25;
+    
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    const fecha = new Date().toLocaleString('es-ES');
+    doc.text(`Generado: ${fecha}`, L, y);
+    y += 25;
+    
+    // Resumen General
+    addText('RESUMEN GENERAL', true);
+    addText(`Total de Actas: ${state.data.filtrada.actas.length}`);
+    
+    const zonasUnicas = new Set(state.data.filtrada.actas.map(a => a.zona).filter(Boolean));
+    addText(`Zonas Únicas: ${zonasUnicas.size}`);
+    
+    const contactosUnicos = new Set(state.data.filtrada.actas.map(a => a.contacto_nombre).filter(Boolean));
+    addText(`Contactos Únicos: ${contactosUnicos.size}`);
+    
+    let totalTemas = 0;
+    state.data.filtrada.actas.forEach(acta => {
+      if(acta.tema_energia_eficiente === 'Sí') totalTemas++;
+      if(acta.tema_conexion_emcali === 'Sí') totalTemas++;
+      if(acta.tema_etiqueta_retiq === 'Sí') totalTemas++;
+      if(acta.tema_ahorro_energia === 'Sí') totalTemas++;
+      if(acta.tema_consumo_energia === 'Sí') totalTemas++;
+    });
+    const promedio = state.data.filtrada.actas.length > 0 ? (totalTemas / state.data.filtrada.actas.length).toFixed(1) : '0';
+    addText(`Promedio de Temas por Acta: ${promedio}`);
+    
+    addSection();
+    
+    // Distribución por Zonas
+    addText('DISTRIBUCIÓN POR ZONAS', true);
+    const zonasCont = {};
+    state.data.filtrada.actas.forEach(acta => {
+      const zona = acta.zona || 'Sin zona';
+      zonasCont[zona] = (zonasCont[zona] || 0) + 1;
+    });
+    Object.entries(zonasCont).sort(([,a], [,b]) => b - a).forEach(([zona, count]) => {
+      addText(`  • ${zona}: ${count} actas`);
+    });
+    
+    addSection();
+    
+    // Temas más Tratados
+    addText('TEMAS MÁS TRATADOS', true);
+    const temasCont = {
+      'Energía Eficiente': 0,
+      'Conexión Emcali': 0,
+      'Etiqueta RETIQ': 0,
+      'Ahorro Energía': 0,
+      'Consumo Energía': 0
+    };
+    
+    state.data.filtrada.actas.forEach(acta => {
+      if(acta.tema_energia_eficiente === 'Sí') temasCont['Energía Eficiente']++;
+      if(acta.tema_conexion_emcali === 'Sí') temasCont['Conexión Emcali']++;
+      if(acta.tema_etiqueta_retiq === 'Sí') temasCont['Etiqueta RETIQ']++;
+      if(acta.tema_ahorro_energia === 'Sí') temasCont['Ahorro Energía']++;
+      if(acta.tema_consumo_energia === 'Sí') temasCont['Consumo Energía']++;
+    });
+    
+    Object.entries(temasCont).sort(([,a], [,b]) => b - a).forEach(([tema, count]) => {
+      const porcentaje = state.data.filtrada.actas.length > 0 ? ((count / state.data.filtrada.actas.length) * 100).toFixed(1) : 0;
+      addText(`  • ${tema}: ${count} veces (${porcentaje}%)`);
+    });
+    
+    addSection();
+    
+    // Actas Recientes (Top 10)
+    addText('ACTAS RECIENTES (TOP 10)', true);
+    const actasRecientes = state.data.filtrada.actas
+      .sort((a, b) => {
+        const fechaA = new Date(a.fecha_utc || a.fecha_local);
+        const fechaB = new Date(b.fecha_utc || b.fecha_local);
+        return fechaB - fechaA;
+      })
+      .slice(0, 10);
+    
+    actasRecientes.forEach((acta, idx) => {
+      const fecha = formatearFecha(acta.fecha_local);
+      const empresa = acta.nombre_empresa || 'Sin nombre';
+      const contacto = acta.contacto_nombre || 'Sin contacto';
+      addText(`${idx + 1}. ${acta.id_acta} - ${empresa} (${contacto}) - ${fecha}`);
+    });
+    
+    addSection();
+    
+    // Top 10 Contactos
+    addText('TOP 10 CONTACTOS MÁS VISITADOS', true);
+    const porContacto = {};
+    state.data.filtrada.actas.forEach(acta => {
+      const contacto = acta.contacto_nombre || 'Sin contacto';
+      porContacto[contacto] = (porContacto[contacto] || 0) + 1;
+    });
+    
+    const topContactos = Object.entries(porContacto)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10);
+    
+    topContactos.forEach(([contacto, count], idx) => {
+      addText(`${idx + 1}. ${contacto}: ${count} visitas`);
+    });
+    
+    // Pie de página
+    doc.setFontSize(8);
+    doc.text('Documento generado por Acta Express - Dashboard de Análisis', L, 800);
+    
+    // Descargar
+    const fechaArchivo = new Date().toISOString().split('T')[0];
+    const filename = `Dashboard_Acta_Express_${fechaArchivo}.pdf`;
+    doc.save(filename);
+    
+    toast('✅ Dashboard PDF descargado: ' + filename);
+    
+  }catch(err){
+    console.error(err);
+    toast('❌ Error generando dashboard PDF: ' + err.message);
   }
 }
