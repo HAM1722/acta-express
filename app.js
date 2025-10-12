@@ -519,6 +519,10 @@ async function buildActaJSON(){
       nit: $('#cliNit').value.trim(),
       actividadEconomica: $('#actividadEconomica').value.trim(),
       exencionContribucion: $('#exencionContribucion').value.trim(),
+      fechaActualizacion: $('#fechaActualizacion').value.trim(),
+      consumoKwh: $('#consumoKwh').value.trim(),
+      tieneConsumoKvar: $('#tieneConsumoKvar').value.trim(),
+      consumoKvar: $('#consumoKvar').value.trim(),
     },
     contacto: {
       nombre: $('#contactoNombre').value.trim(),
@@ -620,7 +624,15 @@ async function buildPDF(acta){
   addText(`Empresa: ${acta.cliente.nombreEmpresa}`);
   addText(`N° Contrato: ${acta.cliente.numeroContrato} | NIT: ${acta.cliente.nit}`);
   addText(`Actividad Económica: ${acta.cliente.actividadEconomica}`);
-  addText(`Exención de Contribución: ${acta.cliente.exencionContribucion}`);
+  addText(`Consumo de kWh: ${acta.cliente.consumoKwh || 'N/A'}`);
+  const kvarTexto = acta.cliente.tieneConsumoKvar === 'Sí' && acta.cliente.consumoKvar 
+    ? `${acta.cliente.tieneConsumoKvar} (${acta.cliente.consumoKvar} kVAR)` 
+    : (acta.cliente.tieneConsumoKvar || 'N/A');
+  addText(`Consumo de kVAR: ${kvarTexto}`);
+  const exencionTexto = acta.cliente.exencionContribucion === 'Sí' && acta.cliente.fechaActualizacion 
+    ? `${acta.cliente.exencionContribucion} (Fecha Actualización: ${acta.cliente.fechaActualizacion})` 
+    : acta.cliente.exencionContribucion;
+  addText(`Exención de Contribución: ${exencionTexto}`);
   y += sectionSpacing;
 
   // Persona Encargada
@@ -855,7 +867,7 @@ function ensureSheets(wb){
     const ws = XLSX.utils.aoa_to_sheet([[
       'id_acta','fecha_local','fecha_utc','ejecutivo_nombre','ejecutivo_correo',
       'zona','barrio','direccion',
-      'nombre_empresa','numero_contrato','nit','actividad_economica','exencion_contribucion',
+      'nombre_empresa','numero_contrato','nit','actividad_economica','consumo_kwh','tiene_consumo_kvar','consumo_kvar','exencion_contribucion','fecha_actualizacion',
       'contacto_nombre','contacto_cargo','contacto_correo','contacto_celular',
       'tema_energia_eficiente','desc_energia_eficiente',
       'tema_conexion_emcali','desc_conexion_emcali',
@@ -899,7 +911,11 @@ function mergeRowsIntoSheets(wb, actas){
       a.cliente?.numeroContrato||'',
       a.cliente?.nit||'',
       a.cliente?.actividadEconomica||'',
+      a.cliente?.consumoKwh||'',
+      a.cliente?.tieneConsumoKvar||'',
+      a.cliente?.consumoKvar||'',
       a.cliente?.exencionContribucion||'',
+      a.cliente?.fechaActualizacion||'',
       a.contacto?.nombre||'',
       a.contacto?.cargo||'',
       a.contacto?.correo||'',
@@ -932,7 +948,7 @@ function mergeRowsIntoSheets(wb, actas){
   }
 
   // Ajuste de rango
-  const totalCols = 38; // Número de columnas (33 + 5 descripciones de temas)
+  const totalCols = 42; // Número de columnas (agregadas: consumo_kwh, tiene_consumo_kvar, consumo_kvar, fecha_actualizacion)
   wsA['!ref'] = wsA['!ref'] || `A1:${XLSX.utils.encode_col(totalCols-1)}${1+rowsA.length}`;
 }
 
