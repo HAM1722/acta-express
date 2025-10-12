@@ -34,6 +34,7 @@ async function init(){
   await idbOpen();
   bindUI();
   await loadCfg();
+  verificarEstadoFirma(); // Verificar si hay firma guardada
   initSignaturePad();
   renderHistorial();
   if(state.cfg.geo){ getGeo(); }
@@ -117,9 +118,27 @@ function bindUI(){
   $('#btnLimpiarExcelHandle').addEventListener('click', ()=>{ localStorage.removeItem('excelMasterName'); toast('Excel maestro olvidado'); updateExcelEstado(); });
 
   $('#btnLimpiarFirma').addEventListener('click', ()=> {
-    if(state.firmaPad) {
-      state.firmaPad.clear();
-      console.log('Firma limpiada');
+    if(state.firmaPad && !state.firmaPad.isEmpty()) {
+      // Confirmar antes de limpiar
+      const confirmar = confirm('⚠️ ¿Estás seguro de que quieres limpiar la firma?\n\nEsta acción NO se puede deshacer automáticamente.');
+      if(confirmar) {
+        state.firmaPad.clear();
+        mostrarEstadoFirma(false);
+        
+        // Limpiar todos los backups
+        localStorage.removeItem('firmaBackup');
+        localStorage.removeItem('firmaBackup2');
+        localStorage.removeItem('firmaBackup3');
+        localStorage.removeItem('firmaBackupTemporal');
+        localStorage.removeItem('firmaGuardada');
+        localStorage.removeItem('timestampFirma');
+        sessionStorage.removeItem('firmaSessionBackup');
+        
+        console.log('Firma limpiada completamente');
+        $('#estado').textContent = 'Firma limpiada';
+      }
+    } else {
+      $('#estado').textContent = 'No hay firma para limpiar';
     }
   });
   
@@ -163,19 +182,33 @@ function bindUI(){
   });
   
   $('#btnRestaurarFirma').addEventListener('click', ()=> {
-    const firmaBackup = localStorage.getItem('firmaBackup');
-    if(firmaBackup) {
-      const canvas = $('#pad');
-      const img = new Image();
-      img.onload = () => {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-        $('#estado').textContent = '✅ Firma restaurada desde backup';
-        console.log('Firma restaurada manualmente');
-      };
-      img.src = firmaBackup;
-    } else {
+    const backups = [
+      localStorage.getItem('firmaBackup'),
+      localStorage.getItem('firmaBackup2'),
+      localStorage.getItem('firmaBackup3'),
+      localStorage.getItem('firmaBackupTemporal'),
+      sessionStorage.getItem('firmaSessionBackup')
+    ];
+    
+    let backupEncontrado = false;
+    for(let backup of backups) {
+      if(backup && backup.length > 1000) {
+        const canvas = $('#pad');
+        const img = new Image();
+        img.onload = () => {
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+          $('#estado').textContent = '✅ Firma restaurada desde backup';
+          console.log('Firma restaurada manualmente');
+        };
+        img.src = backup;
+        backupEncontrado = true;
+        break;
+      }
+    }
+    
+    if(!backupEncontrado) {
       $('#estado').textContent = '❌ No hay backup de firma disponible';
     }
   });
@@ -246,23 +279,51 @@ function initSignaturePad(){
     velocityFilterWeight: 0.7
   });
   
-  // Sistema de backup automático de la firma
+  // Sistema de backup ULTRA-ROBUSTO de la firma
   let backupTimeout;
+  let isSigning = false;
+  
   state.firmaPad.addEventListener('beginStroke', () => {
     clearTimeout(backupTimeout);
+    isSigning = true;
+    console.log('Iniciando firma...');
   });
   
   state.firmaPad.addEventListener('endStroke', () => {
-    // Guardar backup después de cada trazo
+    isSigning = false;
+    // Guardar backup INMEDIATAMENTE después de cada trazo
     clearTimeout(backupTimeout);
     backupTimeout = setTimeout(() => {
       if(!state.firmaPad.isEmpty()) {
         const firmaBackup = state.firmaPad.toDataURL();
+        
+        // Múltiples backups para máxima seguridad
         localStorage.setItem('firmaBackup', firmaBackup);
-        console.log('Backup de firma guardado');
+        localStorage.setItem('firmaBackup2', firmaBackup);
+        localStorage.setItem('firmaBackup3', firmaBackup);
+        
+        // También en sessionStorage como respaldo adicional
+        sessionStorage.setItem('firmaSessionBackup', firmaBackup);
+        
+        // Marcar que hay firma guardada
+        localStorage.setItem('firmaGuardada', 'true');
+        localStorage.setItem('timestampFirma', Date.now().toString());
+        
+        // Mostrar indicador visual
+        mostrarEstadoFirma(true);
+        
+        console.log('✅ Backup de firma guardado en múltiples ubicaciones');
       }
-    }, 500);
+    }, 100); // Reducido a 100ms para máxima rapidez
   });
+  
+  // Backup continuo mientras se está firmando
+  setInterval(() => {
+    if(isSigning && !state.firmaPad.isEmpty()) {
+      const firmaBackup = state.firmaPad.toDataURL();
+      localStorage.setItem('firmaBackupTemporal', firmaBackup);
+    }
+  }, 200); // Cada 200ms mientras se firma
   
   // Manejar redimensionamiento SIN perder la firma
   let resizeTimeout;
@@ -307,19 +368,76 @@ function initSignaturePad(){
     }, 150);
   });
   
-  // Intentar restaurar firma desde backup
-  const firmaBackup = localStorage.getItem('firmaBackup');
-  if(firmaBackup) {
-    const img = new Image();
-    img.onload = () => {
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-      console.log('Firma restaurada desde backup');
-    };
-    img.src = firmaBackup;
+  // Intentar restaurar firma desde múltiples backups
+  function restaurarFirma() {
+    const backups = [
+      localStorage.getItem('firmaBackup'),
+      localStorage.getItem('firmaBackup2'),
+      localStorage.getItem('firmaBackup3'),
+      localStorage.getItem('firmaBackupTemporal'),
+      sessionStorage.getItem('firmaSessionBackup')
+    ];
+    
+    for(let backup of backups) {
+      if(backup && backup.length > 1000) { // Verificar que no esté vacío
+        const img = new Image();
+        img.onload = () => {
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+          console.log('✅ Firma restaurada desde backup:', backup.substring(0, 50) + '...');
+          return true; // Firma restaurada exitosamente
+        };
+        img.onerror = () => {
+          console.warn('Error cargando backup de firma');
+        };
+        img.src = backup;
+        return; // Solo restaurar el primer backup válido
+      }
+    }
+    console.log('No se encontró backup de firma válido');
   }
   
+  // Restaurar automáticamente al inicializar
+  restaurarFirma();
+  
   console.log('SignaturePad inicializado correctamente');
+}
+
+// Función para mostrar el estado de la firma
+function mostrarEstadoFirma(tieneFirma) {
+  const statusEl = $('#firmaStatus');
+  if(statusEl) {
+    if(tieneFirma) {
+      statusEl.classList.remove('hidden');
+      statusEl.textContent = '✅ Firma guardada';
+      statusEl.className = 'bg-green-100 text-green-800 px-2 py-1 rounded text-xs';
+    } else {
+      statusEl.classList.add('hidden');
+    }
+  }
+}
+
+// Verificar estado de firma al cargar la página
+function verificarEstadoFirma() {
+  const firmaGuardada = localStorage.getItem('firmaGuardada') === 'true';
+  const timestamp = localStorage.getItem('timestampFirma');
+  
+  if(firmaGuardada && timestamp) {
+    const tiempoTranscurrido = Date.now() - parseInt(timestamp);
+    const horasTranscurridas = tiempoTranscurrido / (1000 * 60 * 60);
+    
+    // Si han pasado menos de 24 horas, mostrar que hay firma guardada
+    if(horasTranscurridas < 24) {
+      mostrarEstadoFirma(true);
+      console.log('Firma guardada detectada, tiempo transcurrido:', horasTranscurridas.toFixed(2), 'horas');
+    } else {
+      // Limpiar firma antigua
+      localStorage.removeItem('firmaGuardada');
+      localStorage.removeItem('timestampFirma');
+      console.log('Firma antigua limpiada');
+    }
+  }
 }
 function resizeCanvas(c){
   const rect = c.getBoundingClientRect();
@@ -357,6 +475,39 @@ async function sha256Base64(str){
 async function onGenerarPDF(){
   try{
     $('#estado').textContent = 'Generando PDF...';
+    
+    // Verificar que hay firma antes de generar PDF
+    if(!state.firmaPad || state.firmaPad.isEmpty()) {
+      // Intentar restaurar firma desde backup antes de fallar
+      const backups = [
+        localStorage.getItem('firmaBackup'),
+        localStorage.getItem('firmaBackup2'),
+        localStorage.getItem('firmaBackup3'),
+        sessionStorage.getItem('firmaSessionBackup')
+      ];
+      
+      let firmaRestaurada = false;
+      for(let backup of backups) {
+        if(backup && backup.length > 1000) {
+          const canvas = $('#pad');
+          const img = new Image();
+          img.onload = () => {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(img, 0, 0);
+            console.log('Firma restaurada automáticamente antes de generar PDF');
+          };
+          img.src = backup;
+          firmaRestaurada = true;
+          break;
+        }
+      }
+      
+      if(!firmaRestaurada) {
+        throw new Error('⚠️ Debe firmar en el recuadro antes de generar el PDF');
+      }
+    }
+    
     const acta = await buildActaJSON();
     const { blob, filename } = await buildPDF(acta);
     state.ultimoPDFBlob = blob;
@@ -414,6 +565,7 @@ async function buildActaJSON(){
       direccion: $('#direccion').value.trim(),
     },
     cliente: {
+      nombreEmpresa: $('#nombreEmpresa').value.trim(),
       numeroContrato: $('#numeroContrato').value.trim(),
       nit: $('#cliNit').value.trim(),
       actividadEconomica: $('#actividadEconomica').value.trim(),
@@ -516,6 +668,7 @@ async function buildPDF(acta){
 
   // Cliente/Negocio
   addText('DATOS DEL CLIENTE/NEGOCIO', true);
+  addText(`Empresa: ${acta.cliente.nombreEmpresa}`);
   addText(`N° Contrato: ${acta.cliente.numeroContrato} | NIT: ${acta.cliente.nit}`);
   addText(`Actividad Económica: ${acta.cliente.actividadEconomica}`);
   addText(`Exención de Contribución: ${acta.cliente.exencionContribucion}`);
@@ -677,13 +830,14 @@ async function renderHistorial(){
   all.forEach(a=>{
     const div = document.createElement('div');
     div.className='flex items-center gap-2 bg-white border rounded p-2';
-    const contactoNombre = a.contacto?.nombre || a.cliente?.razon || '-';
-    const contrato = a.cliente?.numeroContrato || 'S/N';
-    div.innerHTML = `
-      <div class="flex-1">
-        <div class="font-medium">${a.id} – ${contactoNombre}</div>
-        <div class="text-xs text-slate-500">${a.visita.fecha_local} | Contrato: ${contrato}</div>
-      </div>
+      const empresaNombre = a.cliente?.nombreEmpresa || a.cliente?.razon || '-';
+      const contactoNombre = a.contacto?.nombre || '-';
+      const contrato = a.cliente?.numeroContrato || 'S/N';
+      div.innerHTML = `
+        <div class="flex-1">
+          <div class="font-medium">${a.id} – ${empresaNombre}</div>
+          <div class="text-xs text-slate-500">${a.visita.fecha_local} | ${contactoNombre} | Contrato: ${contrato}</div>
+        </div>
       <button class="btn btn-xs" data-id="${a.id}" data-act="share">Compartir</button>
       <button class="btn btn-xs btn-outline" data-id="${a.id}" data-act="excel">Añadir a Excel</button>
     `;
@@ -752,7 +906,7 @@ function ensureSheets(wb){
     const ws = XLSX.utils.aoa_to_sheet([[
       'id_acta','fecha_local','fecha_utc','ejecutivo_nombre','ejecutivo_correo',
       'zona','barrio','direccion',
-      'numero_contrato','nit','actividad_economica','exencion_contribucion',
+      'nombre_empresa','numero_contrato','nit','actividad_economica','exencion_contribucion',
       'contacto_nombre','contacto_cargo','contacto_correo','contacto_celular',
       'tema_energia_eficiente','desc_energia_eficiente',
       'tema_conexion_emcali','desc_conexion_emcali',
@@ -792,6 +946,7 @@ function mergeRowsIntoSheets(wb, actas){
       a.ubicacion?.zona||'',
       a.ubicacion?.barrio||'',
       a.ubicacion?.direccion||'',
+      a.cliente?.nombreEmpresa||'',
       a.cliente?.numeroContrato||'',
       a.cliente?.nit||'',
       a.cliente?.actividadEconomica||'',
@@ -828,7 +983,7 @@ function mergeRowsIntoSheets(wb, actas){
   }
 
   // Ajuste de rango
-  const totalCols = 37; // Número de columnas (32 + 5 descripciones de temas)
+  const totalCols = 38; // Número de columnas (33 + 5 descripciones de temas)
   wsA['!ref'] = wsA['!ref'] || `A1:${XLSX.utils.encode_col(totalCols-1)}${1+rowsA.length}`;
 }
 
