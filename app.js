@@ -41,6 +41,16 @@ async function init(){
   if('serviceWorker' in navigator){
     try{ await navigator.serviceWorker.register('./service-worker.js'); }catch{}
   }
+  
+  // Limpiar recursos al cerrar la página
+  window.addEventListener('beforeunload', () => {
+    if(window.firmaBackupInterval) {
+      clearInterval(window.firmaBackupInterval);
+    }
+    if(window.firmaResizeHandler) {
+      window.removeEventListener('resize', window.firmaResizeHandler);
+    }
+  });
 }
 
 function hintPWA(){
@@ -182,33 +192,23 @@ function bindUI(){
   });
   
   $('#btnRestaurarFirma').addEventListener('click', ()=> {
-    const backups = [
-      localStorage.getItem('firmaBackup'),
-      localStorage.getItem('firmaBackup2'),
-      localStorage.getItem('firmaBackup3'),
-      localStorage.getItem('firmaBackupTemporal'),
-      sessionStorage.getItem('firmaSessionBackup')
-    ];
-    
-    let backupEncontrado = false;
-    for(let backup of backups) {
-      if(backup && backup.length > 1000) {
-        const canvas = $('#pad');
-        const img = new Image();
-        img.onload = () => {
-          const ctx = canvas.getContext('2d');
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0);
-          $('#estado').textContent = '✅ Firma restaurada desde backup';
-          console.log('Firma restaurada manualmente');
-        };
-        img.src = backup;
-        backupEncontrado = true;
-        break;
-      }
-    }
-    
-    if(!backupEncontrado) {
+    const firmaBackup = localStorage.getItem('firmaBackup');
+    if(firmaBackup && firmaBackup.length > 1000) {
+      const canvas = $('#pad');
+      const img = new Image();
+      img.onload = () => {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        if(state.firmaPad) {
+          state.firmaPad.fromDataURL(firmaBackup);
+        }
+        $('#estado').textContent = '✅ Firma restaurada desde backup';
+        mostrarEstadoFirma(true);
+        console.log('Firma restaurada manualmente');
+      };
+      img.src = firmaBackup;
+    } else {
       $('#estado').textContent = '❌ No hay backup de firma disponible';
     }
   });
@@ -267,6 +267,11 @@ function initSignaturePad(){
     return;
   }
   
+  // Limpiar eventos anteriores para evitar duplicados
+  if(window.firmaResizeHandler) {
+    window.removeEventListener('resize', window.firmaResizeHandler);
+  }
+  
   resizeCanvas(canvas);
   
   // Configuración optimizada para móviles
@@ -275,11 +280,11 @@ function initSignaturePad(){
     penColor: 'rgb(0,0,0)',
     minWidth: 2.0,
     maxWidth: 4.0,
-    throttle: 16, // Mejorar rendimiento en móviles
+    throttle: 16,
     velocityFilterWeight: 0.7
   });
   
-  // Sistema de backup ULTRA-ROBUSTO de la firma
+  // Sistema de backup simplificado pero efectivo
   let backupTimeout;
   let isSigning = false;
   
@@ -291,115 +296,52 @@ function initSignaturePad(){
   
   state.firmaPad.addEventListener('endStroke', () => {
     isSigning = false;
-    // Guardar backup INMEDIATAMENTE después de cada trazo
     clearTimeout(backupTimeout);
     backupTimeout = setTimeout(() => {
       if(!state.firmaPad.isEmpty()) {
         const firmaBackup = state.firmaPad.toDataURL();
-        
-        // Múltiples backups para máxima seguridad
         localStorage.setItem('firmaBackup', firmaBackup);
         localStorage.setItem('firmaBackup2', firmaBackup);
-        localStorage.setItem('firmaBackup3', firmaBackup);
-        
-        // También en sessionStorage como respaldo adicional
         sessionStorage.setItem('firmaSessionBackup', firmaBackup);
-        
-        // Marcar que hay firma guardada
         localStorage.setItem('firmaGuardada', 'true');
         localStorage.setItem('timestampFirma', Date.now().toString());
-        
-        // Mostrar indicador visual
         mostrarEstadoFirma(true);
-        
-        console.log('✅ Backup de firma guardado en múltiples ubicaciones');
+        console.log('✅ Backup de firma guardado');
       }
-    }, 100); // Reducido a 100ms para máxima rapidez
+    }, 100);
   });
   
   // Backup continuo mientras se está firmando
-  setInterval(() => {
+  if(window.firmaBackupInterval) {
+    clearInterval(window.firmaBackupInterval);
+  }
+  window.firmaBackupInterval = setInterval(() => {
     if(isSigning && !state.firmaPad.isEmpty()) {
       const firmaBackup = state.firmaPad.toDataURL();
       localStorage.setItem('firmaBackupTemporal', firmaBackup);
     }
-  }, 200); // Cada 200ms mientras se firma
+  }, 200);
   
   // Manejar redimensionamiento SIN perder la firma
-  let resizeTimeout;
-  window.addEventListener('resize', ()=> {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(() => {
-      // Guardar la firma actual antes de redimensionar
-      const firmaActual = state.firmaPad.isEmpty() ? null : state.firmaPad.toDataURL();
-      
-      // Redimensionar
-      resizeCanvas(canvas);
-      
-      // Restaurar la firma si existía
-      if(firmaActual) {
-        const img = new Image();
-        img.onload = () => {
-          const ctx = canvas.getContext('2d');
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0);
-        };
-        img.src = firmaActual;
-      }
-    }, 100); // Delay para evitar múltiples redimensionamientos
-  });
+  window.firmaResizeHandler = () => {
+    resizeCanvas(canvas);
+  };
+  window.addEventListener('resize', window.firmaResizeHandler);
   
-  // Manejar scroll en móviles
-  let scrollTimeout;
-  window.addEventListener('scroll', ()=> {
-    clearTimeout(scrollTimeout);
-    scrollTimeout = setTimeout(() => {
-      if(!state.firmaPad.isEmpty()) {
-        // Forzar redibujado del canvas después del scroll
-        const firmaActual = state.firmaPad.toDataURL();
-        const img = new Image();
-        img.onload = () => {
-          const ctx = canvas.getContext('2d');
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0);
-        };
-        img.src = firmaActual;
+  // Restaurar firma desde backup al inicializar
+  const firmaBackup = localStorage.getItem('firmaBackup');
+  if(firmaBackup && firmaBackup.length > 1000) {
+    const img = new Image();
+    img.onload = () => {
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      if(state.firmaPad) {
+        state.firmaPad.fromDataURL(firmaBackup);
       }
-    }, 150);
-  });
-  
-  // Intentar restaurar firma desde múltiples backups
-  function restaurarFirma() {
-    const backups = [
-      localStorage.getItem('firmaBackup'),
-      localStorage.getItem('firmaBackup2'),
-      localStorage.getItem('firmaBackup3'),
-      localStorage.getItem('firmaBackupTemporal'),
-      sessionStorage.getItem('firmaSessionBackup')
-    ];
-    
-    for(let backup of backups) {
-      if(backup && backup.length > 1000) { // Verificar que no esté vacío
-        const img = new Image();
-        img.onload = () => {
-          const ctx = canvas.getContext('2d');
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0);
-          console.log('✅ Firma restaurada desde backup:', backup.substring(0, 50) + '...');
-          return true; // Firma restaurada exitosamente
-        };
-        img.onerror = () => {
-          console.warn('Error cargando backup de firma');
-        };
-        img.src = backup;
-        return; // Solo restaurar el primer backup válido
-      }
-    }
-    console.log('No se encontró backup de firma válido');
+      console.log('✅ Firma restaurada desde backup');
+    };
+    img.src = firmaBackup;
   }
-  
-  // Restaurar automáticamente al inicializar
-  restaurarFirma();
   
   console.log('SignaturePad inicializado correctamente');
 }
@@ -440,6 +382,9 @@ function verificarEstadoFirma() {
   }
 }
 function resizeCanvas(c){
+  // Guardar la firma ANTES de redimensionar
+  const firmaActual = state.firmaPad && !state.firmaPad.isEmpty() ? state.firmaPad.toDataURL() : null;
+  
   const rect = c.getBoundingClientRect();
   const ratio = Math.max(window.devicePixelRatio || 1, 1);
   
@@ -457,6 +402,20 @@ function resizeCanvas(c){
   // Configurar contexto para mejor calidad en móviles
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
+  
+  // Restaurar la firma si existía
+  if(firmaActual) {
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0);
+      // Reinicializar SignaturePad con la firma restaurada
+      if(state.firmaPad) {
+        state.firmaPad.clear();
+        state.firmaPad.fromDataURL(firmaActual);
+      }
+    };
+    img.src = firmaActual;
+  }
   
   console.log('Canvas redimensionado:', c.width, 'x', c.height, 'ratio:', ratio);
 }
@@ -479,31 +438,21 @@ async function onGenerarPDF(){
     // Verificar que hay firma antes de generar PDF
     if(!state.firmaPad || state.firmaPad.isEmpty()) {
       // Intentar restaurar firma desde backup antes de fallar
-      const backups = [
-        localStorage.getItem('firmaBackup'),
-        localStorage.getItem('firmaBackup2'),
-        localStorage.getItem('firmaBackup3'),
-        sessionStorage.getItem('firmaSessionBackup')
-      ];
-      
-      let firmaRestaurada = false;
-      for(let backup of backups) {
-        if(backup && backup.length > 1000) {
-          const canvas = $('#pad');
-          const img = new Image();
-          img.onload = () => {
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
-            console.log('Firma restaurada automáticamente antes de generar PDF');
-          };
-          img.src = backup;
-          firmaRestaurada = true;
-          break;
-        }
-      }
-      
-      if(!firmaRestaurada) {
+      const firmaBackup = localStorage.getItem('firmaBackup');
+      if(firmaBackup && firmaBackup.length > 1000) {
+        const canvas = $('#pad');
+        const img = new Image();
+        img.onload = () => {
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+          if(state.firmaPad) {
+            state.firmaPad.fromDataURL(firmaBackup);
+          }
+          console.log('Firma restaurada automáticamente antes de generar PDF');
+        };
+        img.src = firmaBackup;
+      } else {
         throw new Error('⚠️ Debe firmar en el recuadro antes de generar el PDF');
       }
     }
