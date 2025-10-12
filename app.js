@@ -116,7 +116,69 @@ function bindUI(){
   $('#btnElegirExcel').addEventListener('click', chooseExcelMaster);
   $('#btnLimpiarExcelHandle').addEventListener('click', ()=>{ localStorage.removeItem('excelMasterName'); toast('Excel maestro olvidado'); updateExcelEstado(); });
 
-  $('#btnLimpiarFirma').addEventListener('click', ()=> state.firmaPad.clear());
+  $('#btnLimpiarFirma').addEventListener('click', ()=> {
+    if(state.firmaPad) {
+      state.firmaPad.clear();
+      console.log('Firma limpiada');
+    }
+  });
+  
+  $('#btnProbarFirma').addEventListener('click', ()=> {
+    if(state.firmaPad && !state.firmaPad.isEmpty()) {
+      const firmaData = state.firmaPad.toDataURL('image/png');
+      console.log('Firma capturada:', firmaData.length, 'caracteres');
+      console.log('Primeros 100 caracteres:', firmaData.substring(0, 100));
+      
+      // Mostrar información en pantalla
+      $('#estado').textContent = `✅ Firma capturada: ${firmaData.length} caracteres`;
+      
+      // Crear imagen de prueba
+      const img = document.createElement('img');
+      img.src = firmaData;
+      img.style.maxWidth = '200px';
+      img.style.border = '1px solid #ccc';
+      img.style.margin = '10px';
+      
+      // Mostrar imagen temporalmente
+      const container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.top = '50%';
+      container.style.left = '50%';
+      container.style.transform = 'translate(-50%, -50%)';
+      container.style.background = 'white';
+      container.style.padding = '20px';
+      container.style.border = '2px solid #333';
+      container.style.zIndex = '9999';
+      container.innerHTML = '<p>Vista previa de la firma:</p>';
+      container.appendChild(img);
+      
+      document.body.appendChild(container);
+      setTimeout(() => {
+        document.body.removeChild(container);
+      }, 3000);
+      
+    } else {
+      $('#estado').textContent = '❌ No hay firma para probar. Firma primero.';
+    }
+  });
+  
+  $('#btnRestaurarFirma').addEventListener('click', ()=> {
+    const firmaBackup = localStorage.getItem('firmaBackup');
+    if(firmaBackup) {
+      const canvas = $('#pad');
+      const img = new Image();
+      img.onload = () => {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        $('#estado').textContent = '✅ Firma restaurada desde backup';
+        console.log('Firma restaurada manualmente');
+      };
+      img.src = firmaBackup;
+    } else {
+      $('#estado').textContent = '❌ No hay backup de firma disponible';
+    }
+  });
   $('#btnGenerarPDF').addEventListener('click', onGenerarPDF);
   $('#btnCompartir').addEventListener('click', onCompartir);
   $('#btnDescargarPDF').addEventListener('click', descargarPDF);
@@ -167,16 +229,118 @@ function getGeo(){
 // ===== Firma =====
 function initSignaturePad(){
   const canvas = $('#pad');
+  if(!canvas) {
+    console.warn('Canvas de firma no encontrado');
+    return;
+  }
+  
   resizeCanvas(canvas);
-  window.addEventListener('resize', ()=> resizeCanvas(canvas));
-  state.firmaPad = new SignaturePad(canvas, { backgroundColor: 'rgb(255,255,255)' });
+  
+  // Configuración optimizada para móviles
+  state.firmaPad = new SignaturePad(canvas, { 
+    backgroundColor: 'rgb(255,255,255)',
+    penColor: 'rgb(0,0,0)',
+    minWidth: 2.0,
+    maxWidth: 4.0,
+    throttle: 16, // Mejorar rendimiento en móviles
+    velocityFilterWeight: 0.7
+  });
+  
+  // Sistema de backup automático de la firma
+  let backupTimeout;
+  state.firmaPad.addEventListener('beginStroke', () => {
+    clearTimeout(backupTimeout);
+  });
+  
+  state.firmaPad.addEventListener('endStroke', () => {
+    // Guardar backup después de cada trazo
+    clearTimeout(backupTimeout);
+    backupTimeout = setTimeout(() => {
+      if(!state.firmaPad.isEmpty()) {
+        const firmaBackup = state.firmaPad.toDataURL();
+        localStorage.setItem('firmaBackup', firmaBackup);
+        console.log('Backup de firma guardado');
+      }
+    }, 500);
+  });
+  
+  // Manejar redimensionamiento SIN perder la firma
+  let resizeTimeout;
+  window.addEventListener('resize', ()=> {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      // Guardar la firma actual antes de redimensionar
+      const firmaActual = state.firmaPad.isEmpty() ? null : state.firmaPad.toDataURL();
+      
+      // Redimensionar
+      resizeCanvas(canvas);
+      
+      // Restaurar la firma si existía
+      if(firmaActual) {
+        const img = new Image();
+        img.onload = () => {
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = firmaActual;
+      }
+    }, 100); // Delay para evitar múltiples redimensionamientos
+  });
+  
+  // Manejar scroll en móviles
+  let scrollTimeout;
+  window.addEventListener('scroll', ()=> {
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+      if(!state.firmaPad.isEmpty()) {
+        // Forzar redibujado del canvas después del scroll
+        const firmaActual = state.firmaPad.toDataURL();
+        const img = new Image();
+        img.onload = () => {
+          const ctx = canvas.getContext('2d');
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+        };
+        img.src = firmaActual;
+      }
+    }, 150);
+  });
+  
+  // Intentar restaurar firma desde backup
+  const firmaBackup = localStorage.getItem('firmaBackup');
+  if(firmaBackup) {
+    const img = new Image();
+    img.onload = () => {
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      console.log('Firma restaurada desde backup');
+    };
+    img.src = firmaBackup;
+  }
+  
+  console.log('SignaturePad inicializado correctamente');
 }
 function resizeCanvas(c){
+  const rect = c.getBoundingClientRect();
   const ratio = Math.max(window.devicePixelRatio || 1, 1);
-  c.width = c.offsetWidth * ratio;
+  
+  // Establecer tamaño físico del canvas
+  c.width = rect.width * ratio;
   c.height = 240 * ratio;
+  
+  // Establecer tamaño CSS
+  c.style.width = rect.width + 'px';
+  c.style.height = '240px';
+  
   const ctx = c.getContext('2d');
   ctx.scale(ratio, ratio);
+  
+  // Configurar contexto para mejor calidad en móviles
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  
+  console.log('Canvas redimensionado:', c.width, 'x', c.height, 'ratio:', ratio);
 }
 
 // ===== HASH con Web Crypto =====
@@ -217,7 +381,26 @@ async function buildActaJSON(){
   const id = 'AX-' + fecha_utc.replace(/[-:.TZ]/g,'').slice(0,14);
 
   if(state.firmaPad.isEmpty()) throw new Error('⚠️ Debe firmar en el recuadro antes de generar el PDF');
-  const firmaPng = state.firmaPad.toDataURL('image/png');
+  
+  // Capturar firma con mejor calidad para móviles
+  let firmaPng;
+  try {
+    // Intentar con alta calidad primero
+    firmaPng = state.firmaPad.toDataURL('image/png', { 
+      quality: 1.0,
+      pixelRatio: 2.0 
+    });
+    
+    // Si la imagen es muy pequeña, intentar sin compresión
+    if(firmaPng.length < 1000) {
+      firmaPng = state.firmaPad.toDataURL('image/png');
+    }
+    
+    console.log('Firma capturada, tamaño:', firmaPng.length, 'caracteres');
+  } catch(e) {
+    console.error('Error capturando firma:', e);
+    throw new Error('Error al capturar la firma. Intenta firmar de nuevo.');
+  }
 
   const base = {
     id,
@@ -391,9 +574,18 @@ async function buildPDF(acta){
   y += 10;
   
   const img = acta.firma.pngDataUrl;
-  try{
-    doc.addImage(img, 'PNG', L, y, 220, 80);
-  }catch{}
+  if(img && img.length > 100) { // Verificar que la imagen no esté vacía
+    try{
+      doc.addImage(img, 'PNG', L, y, 220, 80);
+      console.log('Firma agregada al PDF correctamente');
+    }catch(e){
+      console.error('Error agregando firma al PDF:', e);
+      addText('⚠️ Error al incluir la firma en el PDF');
+    }
+  } else {
+    console.warn('Firma vacía o inválida:', img ? 'imagen muy pequeña' : 'sin imagen');
+    addText('⚠️ Firma no capturada correctamente');
+  }
   y += 90; // Altura de la imagen + margen
   
   addText(`Nombre: ${acta.firma.nombre}`);
