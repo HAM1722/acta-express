@@ -101,6 +101,26 @@
               <option value="No">No</option>
             </select>
           </div>
+          <div id="fechaActualizacionContainer" class="hidden">
+            <label class="lbl">Fecha de Actualización</label>
+            <input id="fechaActualizacion" type="date" class="inp" />
+          </div>
+          <div>
+            <label class="lbl">Consumo de kWh</label>
+            <input id="consumoKwh" type="number" step="0.01" class="inp" placeholder="Consumo en kWh" />
+          </div>
+          <div>
+            <label class="lbl">¿Tiene consumo de kVAR?</label>
+            <select id="tieneConsumoKvar" class="inp">
+              <option value="">Seleccione...</option>
+              <option value="Sí">Sí</option>
+              <option value="No">No</option>
+            </select>
+          </div>
+          <div id="consumoKvarContainer" class="hidden">
+            <label class="lbl">Consumo de kVAR</label>
+            <input id="consumoKvar" type="number" step="0.01" class="inp" placeholder="Consumo en kVAR" />
+          </div>
         </div>
       </div>
 
@@ -273,6 +293,34 @@
       incCortes.addEventListener('change', ()=>{
         incCortesCant.disabled = incCortes.value !== 'Sí';
         if(incCortes.value !== 'Sí') incCortesCant.value = '';
+      });
+
+      // Exención de contribución - mostrar fecha de actualización
+      const exencionContribucion = document.getElementById('exencionContribucion');
+      const fechaActualizacionContainer = document.getElementById('fechaActualizacionContainer');
+      const fechaActualizacion = document.getElementById('fechaActualizacion');
+      
+      exencionContribucion.addEventListener('change', ()=>{
+        if(exencionContribucion.value === 'Sí') {
+          fechaActualizacionContainer.classList.remove('hidden');
+        } else {
+          fechaActualizacionContainer.classList.add('hidden');
+          fechaActualizacion.value = '';
+        }
+      });
+
+      // Consumo de kVAR - mostrar campo de consumo
+      const tieneConsumoKvar = document.getElementById('tieneConsumoKvar');
+      const consumoKvarContainer = document.getElementById('consumoKvarContainer');
+      const consumoKvar = document.getElementById('consumoKvar');
+      
+      tieneConsumoKvar.addEventListener('change', ()=>{
+        if(tieneConsumoKvar.value === 'Sí') {
+          consumoKvarContainer.classList.remove('hidden');
+        } else {
+          consumoKvarContainer.classList.add('hidden');
+          consumoKvar.value = '';
+        }
       });
 
       // Temas tratados
