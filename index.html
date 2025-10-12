@@ -77,10 +77,13 @@
       <div class="mt-4">
         <h3 class="text-sm font-semibold text-slate-600 mb-2">🏢 Datos del Cliente/Negocio</h3>
         <div class="grid gap-3 md:grid-cols-2">
+          <!-- Fila 1: Nombre de Empresa (ancho completo) -->
           <div class="md:col-span-2">
             <label class="lbl">Nombre de la Empresa</label>
             <input id="nombreEmpresa" class="inp" placeholder="Nombre de la empresa o razón social" />
           </div>
+          
+          <!-- Fila 2: Número de Contrato y NIT -->
           <div>
             <label class="lbl">Número de Contrato</label>
             <input id="numeroContrato" class="inp" placeholder="Número de contrato" />
@@ -89,10 +92,18 @@
             <label class="lbl">NIT</label>
             <input id="cliNit" class="inp" placeholder="NIT del cliente" />
           </div>
+          
+          <!-- Fila 3: Actividad Económica y Consumo kWh -->
           <div>
             <label class="lbl">Actividad Económica</label>
             <input id="actividadEconomica" class="inp" placeholder="Ej: Comercio, Manufactura" />
           </div>
+          <div>
+            <label class="lbl">Consumo de kWh</label>
+            <input id="consumoKwh" type="number" step="0.01" class="inp" placeholder="Consumo en kWh" />
+          </div>
+          
+          <!-- Fila 4: Exención de Contribución y Fecha (condicional) -->
           <div>
             <label class="lbl">Exención de Contribución</label>
             <select id="exencionContribucion" class="inp">
@@ -105,10 +116,8 @@
             <label class="lbl">Fecha de Actualización</label>
             <input id="fechaActualizacion" type="date" class="inp" />
           </div>
-          <div>
-            <label class="lbl">Consumo de kWh</label>
-            <input id="consumoKwh" type="number" step="0.01" class="inp" placeholder="Consumo en kWh" />
-          </div>
+          
+          <!-- Fila 5: Tiene consumo kVAR y Consumo kVAR (condicional) -->
           <div>
             <label class="lbl">¿Tiene consumo de kVAR?</label>
             <select id="tieneConsumoKvar" class="inp">
