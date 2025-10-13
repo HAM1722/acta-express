@@ -898,6 +898,49 @@ async function generarDashboardPDF(){
     let y = T;
     const lineHeight = 14;
     
+    // Función para capturar gráficas como imágenes
+    async function captureChart(canvasId) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return null;
+      
+      try {
+        // Obtener la imagen del canvas
+        const imageData = canvas.toDataURL('image/png');
+        return imageData;
+      } catch (err) {
+        console.warn(`No se pudo capturar la gráfica ${canvasId}:`, err);
+        return null;
+      }
+    }
+    
+    // Función para agregar imagen al PDF
+    function addImageToPDF(imageData, title, width = 200) {
+      if (!imageData) return false;
+      
+      try {
+        // Verificar si necesitamos nueva página
+        if (y + 200 > 800) {
+          doc.addPage();
+          y = T;
+        }
+        
+        // Agregar título de la gráfica
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text(title, L, y);
+        y += 15;
+        
+        // Agregar la imagen
+        doc.addImage(imageData, 'PNG', L, y, width, width * 0.6);
+        y += (width * 0.6) + 20;
+        
+        return true;
+      } catch (err) {
+        console.warn(`Error agregando imagen al PDF:`, err);
+        return false;
+      }
+    }
+    
     // Función helper
     function addText(text, isTitle = false) {
       if(isTitle) {
@@ -962,8 +1005,40 @@ async function generarDashboardPDF(){
     
     addSection();
     
-    // Distribución por Zonas
-    addText('DISTRIBUCIÓN POR ZONAS', true);
+    // Capturar y agregar gráficas al PDF
+    addText('GRÁFICAS DE ANÁLISIS', true);
+    
+    // Capturar todas las gráficas
+    const chartImages = {};
+    const chartIds = [
+      { id: 'chartActasMes', title: 'Actas por Mes' },
+      { id: 'chartMotivos', title: 'Distribución por Zonas' },
+      { id: 'chartTopClientes', title: 'Top 10 Contactos' },
+      { id: 'chartCompromisosEstado', title: 'Temas Tratados' }
+    ];
+    
+    // Capturar cada gráfica
+    for (const chart of chartIds) {
+      const imageData = await captureChart(chart.id);
+      if (imageData) {
+        chartImages[chart.id] = imageData;
+        console.log(`Gráfica ${chart.title} capturada exitosamente`);
+      } else {
+        console.warn(`No se pudo capturar la gráfica ${chart.title}`);
+      }
+    }
+    
+    // Agregar gráficas al PDF
+    for (const chart of chartIds) {
+      if (chartImages[chart.id]) {
+        addImageToPDF(chartImages[chart.id], chart.title, 180);
+      }
+    }
+    
+    addSection();
+    
+    // Distribución por Zonas (texto adicional)
+    addText('DISTRIBUCIÓN POR ZONAS (DETALLE)', true);
     const zonasCont = {};
     state.data.filtrada.actas.forEach(acta => {
       const zona = acta.zona || 'Sin zona';
