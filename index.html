@@ -7,8 +7,58 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="stylesheet" href="./styles.css" />
   <meta name="theme-color" content="#0ea5e9" />
-  <!-- Tailwind (ligero vía CDN para prototipo) -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- CSS crítico para diagramación -->
+  <style>
+    .grid { display: grid; gap: 0.75rem; }
+    .md\:grid-cols-2 { grid-template-columns: repeat(1, 1fr); }
+    .md\:col-span-2 { grid-column: span 1; }
+    .hidden { display: none !important; }
+    @media (min-width: 768px) {
+      .md\:grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
+      .md\:col-span-2 { grid-column: span 2; }
+    }
+  </style>
+  <!-- Tailwind CSS vía CDN con fallback -->
+  <script>
+    // Cargar Tailwind de forma síncrona para GitHub Pages
+    (function() {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.tailwindcss.com';
+      script.onload = function() {
+        // Configurar Tailwind cuando se carga
+        if (typeof tailwind !== 'undefined') {
+          tailwind.config = {
+            theme: {
+              extend: {
+                colors: {
+                  sky: '#0ea5e9',
+                  slate: {
+                    50: '#f8fafc',
+                    100: '#f1f5f9',
+                    200: '#e2e8f0',
+                    300: '#cbd5e1',
+                    400: '#94a3b8',
+                    500: '#64748b',
+                    600: '#475569',
+                    700: '#334155',
+                    800: '#1e293b',
+                    900: '#0f172a'
+                  }
+                }
+              }
+            }
+          };
+        }
+      };
+      script.onerror = function() {
+        // Fallback si el CDN principal falla
+        const fallback = document.createElement('script');
+        fallback.src = 'https://unpkg.com/tailwindcss@3.3.0/lib/tailwind.min.js';
+        document.head.appendChild(fallback);
+      };
+      document.head.appendChild(script);
+    })();
+  </script>
   <!-- Libs -->
   <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.2.0/dist/signature_pad.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -77,13 +127,10 @@
       <div class="mt-4">
         <h3 class="text-sm font-semibold text-slate-600 mb-2">🏢 Datos del Cliente/Negocio</h3>
         <div class="grid gap-3 md:grid-cols-2">
-          <!-- Fila 1: Nombre de Empresa (ancho completo) -->
           <div class="md:col-span-2">
             <label class="lbl">Nombre de la Empresa</label>
             <input id="nombreEmpresa" class="inp" placeholder="Nombre de la empresa o razón social" />
           </div>
-          
-          <!-- Fila 2: Número de Contrato y NIT -->
           <div>
             <label class="lbl">Número de Contrato</label>
             <input id="numeroContrato" class="inp" placeholder="Número de contrato" />
@@ -92,8 +139,6 @@
             <label class="lbl">NIT</label>
             <input id="cliNit" class="inp" placeholder="NIT del cliente" />
           </div>
-          
-          <!-- Fila 3: Actividad Económica y Consumo kWh -->
           <div>
             <label class="lbl">Actividad Económica</label>
             <input id="actividadEconomica" class="inp" placeholder="Ej: Comercio, Manufactura" />
@@ -102,8 +147,6 @@
             <label class="lbl">Consumo de kWh</label>
             <input id="consumoKwh" type="number" step="0.01" class="inp" placeholder="Consumo en kWh" />
           </div>
-          
-          <!-- Fila 4: Exención de Contribución y Fecha (condicional) -->
           <div>
             <label class="lbl">Exención de Contribución</label>
             <select id="exencionContribucion" class="inp">
@@ -112,12 +155,6 @@
               <option value="No">No</option>
             </select>
           </div>
-          <div id="fechaActualizacionContainer" class="hidden">
-            <label class="lbl">Fecha de Actualización</label>
-            <input id="fechaActualizacion" type="date" class="inp" />
-          </div>
-          
-          <!-- Fila 5: Tiene consumo kVAR y Consumo kVAR (condicional) -->
           <div>
             <label class="lbl">¿Tiene consumo de kVAR?</label>
             <select id="tieneConsumoKvar" class="inp">
@@ -125,6 +162,10 @@
               <option value="Sí">Sí</option>
               <option value="No">No</option>
             </select>
+          </div>
+          <div id="fechaActualizacionContainer" class="hidden">
+            <label class="lbl">Fecha de Actualización</label>
+            <input id="fechaActualizacion" type="date" class="inp" />
           </div>
           <div id="consumoKvarContainer" class="hidden">
             <label class="lbl">Consumo de kVAR</label>
