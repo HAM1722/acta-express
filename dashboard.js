@@ -901,12 +901,29 @@ async function generarDashboardPDF(){
     // Función para capturar gráficas como imágenes
     async function captureChart(canvasId) {
       const canvas = document.getElementById(canvasId);
-      if (!canvas) return null;
+      if (!canvas) {
+        console.warn(`Canvas ${canvasId} no encontrado`);
+        return null;
+      }
       
       try {
-        // Obtener la imagen del canvas
-        const imageData = canvas.toDataURL('image/png');
-        return imageData;
+        // Esperar un momento para que la gráfica se renderice completamente
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // Verificar que el canvas tenga contenido
+        const ctx = canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const hasContent = imageData.data.some(channel => channel !== 0);
+        
+        if (!hasContent) {
+          console.warn(`Canvas ${canvasId} está vacío`);
+          return null;
+        }
+        
+        // Obtener la imagen del canvas con alta calidad
+        const imageDataUrl = canvas.toDataURL('image/png', 1.0);
+        console.log(`Gráfica ${canvasId} capturada exitosamente`);
+        return imageDataUrl;
       } catch (err) {
         console.warn(`No se pudo capturar la gráfica ${canvasId}:`, err);
         return null;
@@ -915,11 +932,15 @@ async function generarDashboardPDF(){
     
     // Función para agregar imagen al PDF
     function addImageToPDF(imageData, title, width = 200) {
-      if (!imageData) return false;
+      if (!imageData || imageData === 'data:,') {
+        console.warn(`Imagen vacía para ${title}`);
+        return false;
+      }
       
       try {
         // Verificar si necesitamos nueva página
-        if (y + 200 > 800) {
+        const imageHeight = width * 0.6;
+        if (y + imageHeight + 50 > 800) {
           doc.addPage();
           y = T;
         }
@@ -930,10 +951,11 @@ async function generarDashboardPDF(){
         doc.text(title, L, y);
         y += 15;
         
-        // Agregar la imagen
-        doc.addImage(imageData, 'PNG', L, y, width, width * 0.6);
-        y += (width * 0.6) + 20;
+        // Agregar la imagen con mejor calidad
+        doc.addImage(imageData, 'PNG', L, y, width, imageHeight);
+        y += imageHeight + 25;
         
+        console.log(`Imagen ${title} agregada al PDF`);
         return true;
       } catch (err) {
         console.warn(`Error agregando imagen al PDF:`, err);
@@ -1008,8 +1030,8 @@ async function generarDashboardPDF(){
     // Capturar y agregar gráficas al PDF
     addText('GRÁFICAS DE ANÁLISIS', true);
     
-    // Capturar todas las gráficas
-    const chartImages = {};
+    // Verificar que las gráficas estén renderizadas
+    console.log('Verificando gráficas disponibles...');
     const chartIds = [
       { id: 'chartActasMes', title: 'Actas por Mes' },
       { id: 'chartMotivos', title: 'Distribución por Zonas' },
@@ -1017,23 +1039,41 @@ async function generarDashboardPDF(){
       { id: 'chartCompromisosEstado', title: 'Temas Tratados' }
     ];
     
-    // Capturar cada gráfica
-    for (const chart of chartIds) {
-      const imageData = await captureChart(chart.id);
-      if (imageData) {
-        chartImages[chart.id] = imageData;
-        console.log(`Gráfica ${chart.title} capturada exitosamente`);
+    // Verificar que los canvas existan
+    chartIds.forEach(chart => {
+      const canvas = document.getElementById(chart.id);
+      if (canvas) {
+        console.log(`Canvas ${chart.id} encontrado: ${canvas.width}x${canvas.height}`);
       } else {
-        console.warn(`No se pudo capturar la gráfica ${chart.title}`);
+        console.warn(`Canvas ${chart.id} NO encontrado`);
+      }
+    });
+    
+    // Capturar cada gráfica con más tiempo de espera
+    const chartImages = {};
+    for (const chart of chartIds) {
+      console.log(`Capturando ${chart.title}...`);
+      const imageData = await captureChart(chart.id);
+      if (imageData && imageData !== 'data:,' && imageData.length > 100) {
+        chartImages[chart.id] = imageData;
+        console.log(`✅ Gráfica ${chart.title} capturada exitosamente`);
+      } else {
+        console.warn(`❌ No se pudo capturar la gráfica ${chart.title}`);
+        // Agregar texto alternativo si no se puede capturar la gráfica
+        addText(`⚠️ Gráfica ${chart.title} no disponible`, false);
       }
     }
     
     // Agregar gráficas al PDF
+    let chartsAdded = 0;
     for (const chart of chartIds) {
       if (chartImages[chart.id]) {
-        addImageToPDF(chartImages[chart.id], chart.title, 180);
+        const success = addImageToPDF(chartImages[chart.id], chart.title, 180);
+        if (success) chartsAdded++;
       }
     }
+    
+    console.log(`Total de gráficas agregadas al PDF: ${chartsAdded}/${chartIds.length}`);
     
     addSection();
     
