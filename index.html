@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Acta Express</title>
   <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="stylesheet" href="./styles.css?v=20251013-fix" />
+  <link rel="stylesheet" href="./styles.css?v=20251013-final" />
   <meta name="theme-color" content="#0ea5e9" />
   <!-- Tailwind CSS embebido para GitHub Pages -->
   <style>
@@ -117,6 +117,31 @@
       width:1rem;
       height:1rem;
       margin-right:.5rem;
+    }
+    
+    /* Custom Classes */
+    .lbl{
+      display:block;
+      font-size:.875rem;
+      font-weight:500;
+      color:#374151;
+      margin-bottom:.25rem;
+    }
+    .inp{
+      width:100%;
+      padding:.5rem .75rem;
+      border:1px solid #d1d5db;
+      border-radius:.375rem;
+      font-size:.875rem;
+      line-height:1.25rem;
+      background-color:#ffffff;
+      transition:border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+    }
+    .inp:focus{
+      outline:2px solid transparent;
+      outline-offset:2px;
+      border-color:#3b82f6;
+      box-shadow:0 0 0 3px rgba(59,130,246,.1);
     }
     
     /* Responsive */
