@@ -5,59 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Acta Express</title>
   <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=20251013" />
   <meta name="theme-color" content="#0ea5e9" />
-  <!-- CSS crítico para diagramación -->
-  <style>
-    .grid { display: grid; gap: 0.75rem; }
-    .md\:grid-cols-2 { grid-template-columns: repeat(1, 1fr); }
-    .md\:col-span-2 { grid-column: span 1; }
-    .hidden { display: none !important; }
-    @media (min-width: 768px) {
-      .md\:grid-cols-2 { grid-template-columns: repeat(2, 1fr); }
-      .md\:col-span-2 { grid-column: span 2; }
-    }
-  </style>
-  <!-- Tailwind CSS vía CDN con fallback -->
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com?v=20251013"></script>
   <script>
-    // Cargar Tailwind de forma síncrona para GitHub Pages
-    (function() {
-      const script = document.createElement('script');
-      script.src = 'https://cdn.tailwindcss.com';
-      script.onload = function() {
-        // Configurar Tailwind cuando se carga
-        if (typeof tailwind !== 'undefined') {
-          tailwind.config = {
-            theme: {
-              extend: {
-                colors: {
-                  sky: '#0ea5e9',
-                  slate: {
-                    50: '#f8fafc',
-                    100: '#f1f5f9',
-                    200: '#e2e8f0',
-                    300: '#cbd5e1',
-                    400: '#94a3b8',
-                    500: '#64748b',
-                    600: '#475569',
-                    700: '#334155',
-                    800: '#1e293b',
-                    900: '#0f172a'
-                  }
-                }
-              }
-            }
-          };
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            sky: '#0ea5e9'
+          }
         }
-      };
-      script.onerror = function() {
-        // Fallback si el CDN principal falla
-        const fallback = document.createElement('script');
-        fallback.src = 'https://unpkg.com/tailwindcss@3.3.0/lib/tailwind.min.js';
-        document.head.appendChild(fallback);
-      };
-      document.head.appendChild(script);
-    })();
+      }
+    }
   </script>
   <!-- Libs -->
   <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.2.0/dist/signature_pad.umd.min.js"></script>
