@@ -1,71 +1,29 @@
-const CACHE = 'acta-express-v2';
-const ASSETS = [
-  './',
-  './index.html',
-  './app.js',
-  './dashboard.html',
-  './dashboard.js',
-  './styles.css',
-  './manifest.webmanifest',
-  './icon-192.png',
-  './icon-512.png'
-];
+:root{ --sky:#0ea5e9; --ink:#0f172a; --muted:#64748b; }
+body{ font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+.card{ background:#fff; border:1px solid #e2e8f0; border-radius:14px; padding:16px; box-shadow: 0 2px 8px rgba(2,6,23,0.04); }
+.card-title{ font-size:1rem; font-weight:700; color:#0f172a; margin-bottom:10px; }
+.lbl{ display:block; font-size:.8rem; color:#334155; margin-bottom:6px; }
+.inp{ width:100%; background:#fff; border:1px solid #cbd5e1; border-radius:10px; padding:10px 12px; font-size:.95rem; }
+.btn{ background:var(--sky); color:#fff; padding:10px 14px; border-radius:10px; font-weight:600; }
+.btn:hover{ filter:brightness(0.95); }
+.btn-outline{ background:#fff; color:var(--sky); border:1px solid var(--sky); }
+.btn-ghost{ background:transparent; color:#0f172a; border:1px dashed #cbd5e1; }
+.btn-xs{ padding:6px 8px; font-size:.8rem; }
+.chip{ background:#f1f5f9; border:1px solid #e2e8f0; border-radius:999px; padding:6px 12px; font-size:.85rem; }
+.chip:active{ transform:scale(.98); }
 
-// CDNs se cachean bajo demanda
-const CDN_URLS = [
-  'https://cdn.tailwindcss.com',
-  'https://cdn.jsdelivr.net/npm/signature_pad@4.2.0/dist/signature_pad.umd.min.js',
-  'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js',
-  'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
-  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
-  'https://cdn.jsdelivr.net/npm/chart.js'
-];
-
-self.addEventListener('install', (e)=>{
-  e.waitUntil(
-    caches.open(CACHE).then(c => {
-      // Cachear assets locales primero
-      return c.addAll(ASSETS);
-    })
-  );
-  self.skipWaiting();
-});
-
-self.addEventListener('activate', (e)=>{
-  e.waitUntil(
-    caches.keys().then(keys => 
-      Promise.all(keys.map(k => k !== CACHE && caches.delete(k)))
-    )
-  );
-  return self.clients.claim();
-});
-
-self.addEventListener('fetch', (e)=>{
-  const url = e.request.url;
-  
-  // Cache-first para assets locales
-  if(url.includes(self.location.origin)){
-    e.respondWith(
-      caches.match(e.request).then(res => 
-        res || fetch(e.request).then(fetchRes => {
-          return caches.open(CACHE).then(cache => {
-            cache.put(e.request, fetchRes.clone());
-            return fetchRes;
-          });
-        }).catch(() => caches.match('./index.html'))
-      )
-    );
-  }
-  // Network-first para CDNs
-  else {
-    e.respondWith(
-      fetch(e.request).then(fetchRes => {
-        return caches.open(CACHE).then(cache => {
-          cache.put(e.request, fetchRes.clone());
-          return fetchRes;
-        });
-      }).catch(() => caches.match(e.request))
-    );
-  }
-});
+/* Estilos específicos para el canvas de firma */
+#pad {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  position: relative;
+  will-change: auto;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
 
