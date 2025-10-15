@@ -144,11 +144,53 @@
       box-shadow:0 0 0 3px rgba(59,130,246,.1);
     }
     
-    /* Responsive */
+    /* Responsive y Mobile-First */
+    @media (max-width: 767px) {
+      .mobile\:p-2{padding:.5rem}
+      .mobile\:text-sm{font-size:.875rem}
+      .mobile\:gap-2{gap:.5rem}
+      .mobile\:flex-col{flex-direction:column}
+      .mobile\:w-full{width:100%}
+      .mobile\:text-center{text-align:center}
+      .mobile\:hidden{display:none}
+      .mobile\:block{display:block}
+      .mobile\:mt-2{margin-top:.5rem}
+      .mobile\:mb-2{margin-bottom:.5rem}
+      .mobile\:p-3{padding:.75rem}
+      .mobile\:rounded-lg{border-radius:.5rem}
+      .mobile\:shadow-md{box-shadow:0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -1px rgba(0,0,0,.06)}
+    }
+    
     @media (min-width:768px){
       .md\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
       .md\:col-span-2{grid-column:span 2}
+      .md\:flex-row{flex-direction:row}
+      .md\:gap-4{gap:1rem}
     }
+    
+    /* Mejoras visuales generales */
+    .card{background:white;border-radius:.75rem;box-shadow:0 1px 3px 0 rgba(0,0,0,.1),0 1px 2px 0 rgba(0,0,0,.06);padding:1.5rem;margin-bottom:1rem}
+    .card-title{font-size:1.25rem;font-weight:600;color:#1e293b;margin-bottom:1rem;border-bottom:2px solid #e2e8f0;padding-bottom:.5rem}
+    .btn{display:inline-flex;align-items:center;justify-content:center;padding:.75rem 1rem;font-size:.875rem;font-weight:500;border-radius:.5rem;transition:all 0.2s;cursor:pointer;border:none;text-decoration:none}
+    .btn:hover{transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,0,0,.15)}
+    .btn:active{transform:translateY(0)}
+    .btn-primary{background:#0ea5e9;color:white}
+    .btn-primary:hover{background:#0284c7}
+    .btn-success{background:#10b981;color:white}
+    .btn-success:hover{background:#059669}
+    .btn-warning{background:#f59e0b;color:white}
+    .btn-warning:hover{background:#d97706}
+    .btn-danger{background:#ef4444;color:white}
+    .btn-danger:hover{background:#dc2626}
+    .btn-outline{background:transparent;border:1px solid #d1d5db;color:#374151}
+    .btn-outline:hover{background:#f9fafb;border-color:#9ca3af}
+    .btn-ghost{background:transparent;border:1px solid #e5e7eb;color:#6b7280}
+    .btn-ghost:hover{background:#f3f4f6;border-color:#d1d5db}
+    .btn-sm{padding:.5rem .75rem;font-size:.75rem}
+    .btn-xs{padding:.25rem .5rem;font-size:.75rem}
+    .inp{width:100%;padding:.75rem;border:1px solid #d1d5db;border-radius:.5rem;font-size:.875rem;transition:border-color 0.2s}
+    .inp:focus{outline:none;border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.1)}
+    .lbl{display:block;font-size:.875rem;font-weight:500;color:#374151;margin-bottom:.5rem}
   </style>
   
   <!-- Estilos adicionales para gestión de duplicados -->
@@ -171,6 +213,47 @@
     .hover\:bg-red-200:hover{background-color:#fecaca}
     .bg-slate-50{background-color:#f8fafc}
     .text-slate-600{color:#475569}
+    .bg-blue-50{background-color:#eff6ff}
+    .bg-blue-200{background-color:#bfdbfe}
+    .text-blue-800{color:#1e40af}
+    .border-blue-200{border-color:#bfdbfe}
+    .accent-blue-600{accent-color:#2563eb}
+    
+    /* Colores adicionales para secciones */
+    .bg-green-50{background-color:#f0fdf4}
+    .bg-green-200{background-color:#bbf7d0}
+    .text-green-700{color:#15803d}
+    .border-green-200{border-color:#bbf7d0}
+    
+    .bg-purple-50{background-color:#faf5ff}
+    .bg-purple-200{background-color:#e9d5ff}
+    .text-purple-700{color:#7c3aed}
+    .border-purple-200{border-color:#e9d5ff}
+    
+    .bg-yellow-50{background-color:#fefce8}
+    .bg-yellow-200{background-color:#fef08a}
+    .text-yellow-700{color:#a16207}
+    .border-yellow-200{border-color:#fef08a}
+    
+    .bg-red-50{background-color:#fef2f2}
+    .bg-red-200{background-color:#fecaca}
+    .text-red-700{color:#b91c1c}
+    .border-red-200{border-color:#fecaca}
+    
+    .bg-indigo-50{background-color:#eef2ff}
+    .bg-indigo-200{background-color:#c7d2fe}
+    .text-indigo-700{color:#4338ca}
+    .border-indigo-200{border-color:#c7d2fe}
+    
+    .bg-gray-50{background-color:#f9fafb}
+    .border-gray-200{border-color:#e5e7eb}
+    
+    /* Gradientes */
+    .bg-gradient-to-r{background-image:linear-gradient(to right,var(--tw-gradient-stops))}
+    .from-blue-50{--tw-gradient-from:#eff6ff;--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to,rgba(239,246,255,0))}
+    .to-indigo-50{--tw-gradient-to:#eef2ff}
+    .from-sky-600{--tw-gradient-from:#0284c7;--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to,rgba(2,132,199,0))}
+    .to-blue-700{--tw-gradient-to:#1d4ed8}
   </style>
   
   <!-- Libs -->
@@ -180,47 +263,55 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-800">
-  <header class="p-4 bg-sky-600 text-white shadow">
-    <h1 class="text-xl font-semibold">Acta Express</h1>
-    <p class="text-sm opacity-90">Visita de fidelización – Firma en sitio – PDF – Excel maestro</p>
+  <header class="p-4 mobile:p-3 bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-lg">
+    <div class="flex items-center justify-between">
+      <div>
+        <h1 class="text-xl mobile:text-lg font-bold">📋 Acta Express</h1>
+        <p class="text-sm mobile:text-xs opacity-90 mobile:hidden">Visita de fidelización – Firma en sitio – PDF – Excel maestro</p>
+        <p class="text-xs opacity-90 md:hidden">Sistema de actas digitales</p>
+      </div>
+      <div class="mobile:hidden">
+        <span class="text-xs bg-white/20 px-2 py-1 rounded-full">PWA</span>
+      </div>
+    </div>
   </header>
 
-  <main class="p-4 space-y-6 max-w-3xl mx-auto">
+  <main class="p-4 mobile:p-2 space-y-4 mobile:space-y-3 max-w-4xl mx-auto">
     <!-- Aviso PWA / offline -->
     <div id="pwaHint" class="hidden bg-amber-50 border border-amber-200 p-3 rounded text-amber-700 text-sm"></div>
 
     <!-- Config rápida -->
-    <section class="card">
-      <h2 class="card-title">Configuración</h2>
+    <section class="card mobile:p-3">
+      <h2 class="card-title mobile:text-lg">⚙️ Configuración</h2>
       <div class="grid gap-3 md:grid-cols-2">
         <div>
-          <label class="lbl">Mi nombre (Ejecutivo)</label>
-          <input id="cfgEjecutivo" class="inp" placeholder="Tu nombre" />
+          <label class="lbl">👤 Mi nombre (Ejecutivo)</label>
+          <input id="cfgEjecutivo" class="inp mobile:text-base" placeholder="Tu nombre completo" />
         </div>
         <div>
-          <label class="lbl">Mi correo (CC)</label>
-          <input id="cfgCorreo" class="inp" placeholder="tucorreo@empresa.com" />
+          <label class="lbl">📧 Mi correo (CC)</label>
+          <input id="cfgCorreo" class="inp mobile:text-base" type="email" placeholder="tucorreo@empresa.com" />
         </div>
-        <div class="md:col-span-2 flex items-center gap-2">
+        <div class="md:col-span-2 flex items-center gap-2 p-2 bg-slate-50 rounded-lg">
           <input id="cfgGeo" type="checkbox" class="accent-sky-600" />
-          <label for="cfgGeo" class="text-sm">Incluir ubicación (geo) en las actas</label>
+          <label for="cfgGeo" class="text-sm">📍 Incluir ubicación (GPS) en las actas</label>
         </div>
       </div>
-      <div class="mt-3 config-buttons flex flex-wrap gap-2">
-        <button id="btnGuardarCfg" class="btn">Guardar configuración</button>
-        <button id="btnElegirExcel" class="btn btn-outline" title="Opción A – Android/Chrome">Elegir/crear Excel maestro</button>
-        <button id="btnLimpiarExcelHandle" class="btn btn-ghost">Olvidar Excel maestro</button>
+      <div class="mt-4 flex flex-wrap gap-2 mobile:gap-1">
+        <button id="btnGuardarCfg" class="btn btn-primary mobile:flex-1 mobile:text-sm">💾 Guardar</button>
+        <button id="btnElegirExcel" class="btn btn-outline mobile:flex-1 mobile:text-sm" title="Opción A – Android/Chrome">📊 Excel</button>
+        <button id="btnLimpiarExcelHandle" class="btn btn-ghost mobile:flex-1 mobile:text-sm">🗑️ Limpiar</button>
       </div>
-      <p id="excelEstado" class="text-xs text-slate-500 mt-2"></p>
+      <p id="excelEstado" class="text-xs text-slate-500 mt-2 p-2 bg-slate-50 rounded"></p>
     </section>
 
     <!-- Formulario Express -->
-    <section class="card">
-      <h2 class="card-title">Nueva Acta de Visita</h2>
+    <section class="card mobile:p-3">
+      <h2 class="card-title mobile:text-lg">📝 Nueva Acta de Visita</h2>
       
       <!-- Datos del Ejecutivo y Ubicación -->
-      <div class="mt-3">
-        <h3 class="text-sm font-semibold text-slate-600 mb-2">📍 Datos del Ejecutivo y Ubicación</h3>
+      <div class="mt-4 p-3 bg-slate-50 rounded-lg">
+        <h3 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">📍 Datos del Ejecutivo y Ubicación</h3>
         <div class="grid gap-3 md:grid-cols-2">
           <div>
             <label class="lbl">Zona</label>
@@ -238,8 +329,8 @@
       </div>
 
       <!-- Datos del Cliente/Negocio -->
-      <div class="mt-4">
-        <h3 class="text-sm font-semibold text-slate-600 mb-2">🏢 Datos del Cliente/Negocio</h3>
+      <div class="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+        <h3 class="text-sm font-semibold text-green-700 mb-3 flex items-center gap-2">🏢 Datos del Cliente/Negocio</h3>
         <div class="grid gap-3 md:grid-cols-2">
           <div class="md:col-span-2">
             <label class="lbl">Nombre de la Empresa</label>
@@ -289,8 +380,8 @@
       </div>
 
       <!-- Datos Persona Encargada -->
-      <div class="mt-4">
-        <h3 class="text-sm font-semibold text-slate-600 mb-2">👤 Datos de la Persona Encargada</h3>
+      <div class="mt-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
+        <h3 class="text-sm font-semibold text-purple-700 mb-3 flex items-center gap-2">👤 Datos de la Persona Encargada</h3>
         <div class="grid gap-3 md:grid-cols-2">
           <div>
             <label class="lbl">Contacto (Nombre)</label>
@@ -312,8 +403,8 @@
       </div>
 
       <!-- Temas a Tratar -->
-      <div class="mt-4">
-        <h3 class="text-sm font-semibold text-slate-600 mb-2">✅ Temas Tratados con el Cliente</h3>
+      <div class="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+        <h3 class="text-sm font-semibold text-yellow-700 mb-3 flex items-center gap-2">✅ Temas Tratados con el Cliente</h3>
         <div class="space-y-3">
           <div>
             <label class="flex items-center gap-2 text-sm mb-1">
@@ -354,8 +445,8 @@
       </div>
 
       <!-- Incidencias -->
-      <div class="mt-4">
-        <h3 class="text-sm font-semibold text-slate-600 mb-2">⚠️ Incidencias</h3>
+      <div class="mt-4 p-3 bg-red-50 rounded-lg border border-red-200">
+        <h3 class="text-sm font-semibold text-red-700 mb-3 flex items-center gap-2">⚠️ Incidencias</h3>
         <div class="space-y-3">
           <div class="grid gap-3 md:grid-cols-3 items-end">
             <div class="md:col-span-2">
@@ -389,9 +480,20 @@
       </div>
 
       <!-- Observaciones -->
-      <div class="mt-4">
-        <label class="lbl">Observaciones Generales</label>
-        <textarea id="observaciones" class="inp" rows="4" placeholder="Observaciones adicionales de la visita..."></textarea>
+      <div class="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+        <label class="lbl">📝 Observaciones Generales</label>
+        <textarea id="observaciones" class="inp mobile:text-base" rows="4" placeholder="Observaciones adicionales de la visita..."></textarea>
+      </div>
+
+      <!-- Campo de Reconquista -->
+      <div class="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-lg shadow-sm">
+        <div class="flex items-center gap-3">
+          <input id="reconquista" type="checkbox" class="accent-blue-600 w-5 h-5" />
+          <label for="reconquista" class="text-base font-semibold text-blue-800 flex items-center gap-2">
+            🎯 Esta es una visita de RECONQUISTA
+          </label>
+        </div>
+        <p class="text-xs text-blue-600 mt-2 ml-8">Marca esta opción si es una visita para recuperar un cliente</p>
       </div>
 
       <div class="mt-4 flex items-center gap-2">
@@ -399,8 +501,8 @@
         <label for="consent" class="text-sm">El cliente autoriza el registro y envío del acta</label>
       </div>
 
-      <div class="mt-6">
-        <h3 class="text-sm font-semibold text-slate-600 mb-2">Firma del cliente</h3>
+      <div class="mt-4 p-3 bg-indigo-50 rounded-lg border border-indigo-200">
+        <h3 class="text-sm font-semibold text-indigo-700 mb-3 flex items-center gap-2">✍️ Firma del Cliente</h3>
         <div class="bg-white border rounded-lg p-3">
           <div class="flex gap-2 items-center text-xs text-slate-500 mb-2">
             <span>Firme con el dedo dentro del recuadro</span>
@@ -421,32 +523,32 @@
         </div>
       </div>
 
-      <div class="mt-6 flex flex-wrap gap-2">
-        <button id="btnGenerarPDF" class="btn">Generar PDF</button>
-        <button id="btnCompartir" class="btn btn-outline">Compartir (Outlook)</button>
-        <button id="btnDescargarPDF" class="btn btn-ghost">📥 Descargar PDF</button>
-        <button id="btnGuardarExcel" class="btn btn-ghost">Actualizar Excel maestro</button>
-        <button id="btnLimpiarDuplicados" class="btn btn-ghost text-orange-600">🧹 Limpiar duplicados</button>
+      <div class="mt-6 flex flex-wrap gap-2 mobile:gap-1">
+        <button id="btnGenerarPDF" class="btn btn-primary mobile:flex-1 mobile:text-sm">📄 Generar PDF</button>
+        <button id="btnCompartir" class="btn btn-success mobile:flex-1 mobile:text-sm">📤 Compartir</button>
+        <button id="btnDescargarPDF" class="btn btn-outline mobile:flex-1 mobile:text-sm">📥 Descargar</button>
+        <button id="btnGuardarExcel" class="btn btn-warning mobile:flex-1 mobile:text-sm">📊 Excel</button>
+        <button id="btnLimpiarDuplicados" class="btn btn-danger mobile:flex-1 mobile:text-sm">🧹 Duplicados</button>
       </div>
       <p id="estado" class="text-xs text-slate-500 mt-2"></p>
     </section>
 
     <!-- Historial -->
-    <section class="card">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="card-title">Historial de Actas</h2>
-        <div class="flex gap-2">
-          <button id="btnLimpiarDuplicadosHistorial" class="btn btn-sm bg-orange-500 text-white hover:bg-orange-600">
-            🧹 Limpiar Duplicados
+    <section class="card mobile:p-3">
+      <div class="flex flex-col mobile:flex-row justify-between items-start mobile:items-center mb-4 gap-3">
+        <h2 class="card-title mobile:text-lg">📚 Historial de Actas</h2>
+        <div class="flex flex-wrap gap-2 mobile:gap-1 w-full mobile:w-auto">
+          <button id="btnLimpiarDuplicadosHistorial" class="btn btn-sm bg-orange-500 text-white hover:bg-orange-600 mobile:flex-1">
+            🧹 Duplicados
           </button>
-          <button id="btnLimpiarHistorial" class="btn btn-sm bg-red-500 text-white hover:bg-red-600">
-            🗑️ Limpiar Todo
+          <button id="btnLimpiarHistorial" class="btn btn-sm bg-red-500 text-white hover:bg-red-600 mobile:flex-1">
+            🗑️ Limpiar
           </button>
-          <a href="./dashboard.html" class="btn btn-outline btn-sm">📊 Dashboard</a>
+          <a href="./dashboard.html" class="btn btn-outline btn-sm mobile:flex-1">📊 Dashboard</a>
         </div>
       </div>
-      <div id="historialStats" class="text-sm text-slate-600 mb-3 p-2 bg-slate-50 rounded"></div>
-      <div id="historial" class="space-y-2 text-sm"></div>
+      <div id="historialStats" class="text-sm text-slate-600 mb-3 p-3 bg-slate-50 rounded-lg border"></div>
+      <div id="historial" class="space-y-3 text-sm"></div>
     </section>
   </main>
 
