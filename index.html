@@ -150,6 +150,29 @@
       .md\:col-span-2{grid-column:span 2}
     }
   </style>
+  
+  <!-- Estilos adicionales para gestión de duplicados -->
+  <style>
+    .btn-xs{padding:.25rem .5rem;font-size:.75rem}
+    .bg-orange-500{background-color:#f97316}
+    .bg-orange-600{background-color:#ea580c}
+    .bg-red-500{background-color:#ef4444}
+    .bg-red-600{background-color:#dc2626}
+    .bg-red-100{background-color:#fee2e2}
+    .bg-red-200{background-color:#fecaca}
+    .bg-orange-200{background-color:#fed7aa}
+    .bg-orange-50{background-color:#fff7ed}
+    .bg-orange-300{background-color:#fdba74}
+    .text-orange-600{color:#ea580c}
+    .text-orange-800{color:#9a3412}
+    .text-red-600{color:#dc2626}
+    .hover\:bg-orange-600:hover{background-color:#ea580c}
+    .hover\:bg-red-600:hover{background-color:#dc2626}
+    .hover\:bg-red-200:hover{background-color:#fecaca}
+    .bg-slate-50{background-color:#f8fafc}
+    .text-slate-600{color:#475569}
+  </style>
+  
   <!-- Libs -->
   <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.2.0/dist/signature_pad.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -403,16 +426,26 @@
         <button id="btnCompartir" class="btn btn-outline">Compartir (Outlook)</button>
         <button id="btnDescargarPDF" class="btn btn-ghost">📥 Descargar PDF</button>
         <button id="btnGuardarExcel" class="btn btn-ghost">Actualizar Excel maestro</button>
+        <button id="btnLimpiarDuplicados" class="btn btn-ghost text-orange-600">🧹 Limpiar duplicados</button>
       </div>
       <p id="estado" class="text-xs text-slate-500 mt-2"></p>
     </section>
 
     <!-- Historial -->
     <section class="card">
-      <h2 class="card-title">Historial</h2>
-      <div class="mb-3">
-        <a href="./dashboard.html" class="btn btn-outline btn-sm">📊 Ver Dashboard y Reportes</a>
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="card-title">Historial de Actas</h2>
+        <div class="flex gap-2">
+          <button id="btnLimpiarDuplicadosHistorial" class="btn btn-sm bg-orange-500 text-white hover:bg-orange-600">
+            🧹 Limpiar Duplicados
+          </button>
+          <button id="btnLimpiarHistorial" class="btn btn-sm bg-red-500 text-white hover:bg-red-600">
+            🗑️ Limpiar Todo
+          </button>
+          <a href="./dashboard.html" class="btn btn-outline btn-sm">📊 Dashboard</a>
+        </div>
       </div>
+      <div id="historialStats" class="text-sm text-slate-600 mb-3 p-2 bg-slate-50 rounded"></div>
       <div id="historial" class="space-y-2 text-sm"></div>
     </section>
   </main>
