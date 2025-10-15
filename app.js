@@ -94,6 +94,52 @@ function idbAll(){
   });
 }
 
+async function limpiarDuplicadosIndexedDB(){
+  try {
+    const allActas = await idbAll();
+    const uniqueActas = [];
+    const seenContent = new Set();
+    
+    for(const acta of allActas) {
+      const contentHash = `${acta.cliente?.numeroContrato||''}_${acta.cliente?.nit||''}_${acta.visita?.fecha_local||''}`;
+      
+      if(!seenContent.has(contentHash)) {
+        seenContent.add(contentHash);
+        uniqueActas.push(acta);
+      } else {
+        console.log(`Eliminando duplicado: ${acta.id} - ${acta.cliente?.numeroContrato}`);
+      }
+    }
+    
+    if(uniqueActas.length !== allActas.length) {
+      // Limpiar la base de datos y reinsertar solo las únicas
+      const tx = db.transaction(DB_STORE, 'readwrite');
+      await new Promise((resolve, reject) => {
+        tx.objectStore(DB_STORE).clear();
+        tx.oncomplete = resolve;
+        tx.onerror = reject;
+      });
+      
+      // Reinsertar las actas únicas
+      for(const acta of uniqueActas) {
+        await idbPut(acta);
+      }
+      
+      const duplicadosEliminados = allActas.length - uniqueActas.length;
+      toast(`✅ Limpieza completada: ${duplicadosEliminados} duplicados eliminados`);
+      console.log(`Limpieza completada: ${duplicadosEliminados} duplicados eliminados`);
+      return duplicadosEliminados;
+    } else {
+      toast('✅ No se encontraron duplicados');
+      return 0;
+    }
+  } catch(error) {
+    console.error('Error limpiando duplicados:', error);
+    toast('❌ Error limpiando duplicados');
+    return -1;
+  }
+}
+
 // ===== Configuración =====
 async function loadCfg(){
   const raw = localStorage.getItem('cfg');
@@ -216,6 +262,44 @@ function bindUI(){
   $('#btnCompartir').addEventListener('click', onCompartir);
   $('#btnDescargarPDF').addEventListener('click', descargarPDF);
   $('#btnGuardarExcel').addEventListener('click', onGuardarExcelMaestro);
+  // Botón original de limpiar duplicados (en la sección de generar PDF)
+  $('#btnLimpiarDuplicados').addEventListener('click', async () => {
+    const confirmar = confirm('⚠️ ¿Estás seguro de que quieres limpiar duplicados?\n\nEsta acción eliminará registros duplicados del historial local. Los archivos Excel no se verán afectados.');
+    if(confirmar) {
+      $('#estado').textContent = 'Limpiando duplicados...';
+      const duplicadosEliminados = await limpiarDuplicadosIndexedDB();
+      renderHistorial();
+      if(duplicadosEliminados >= 0) {
+        $('#estado').textContent = `✅ Limpieza completada: ${duplicadosEliminados} duplicados eliminados`;
+      }
+    }
+  });
+
+  // Botón de limpiar duplicados en la sección de historial
+  $('#btnLimpiarDuplicadosHistorial').addEventListener('click', async () => {
+    const confirmar = confirm('⚠️ ¿Estás seguro de que quieres limpiar duplicados?\n\nEsta acción eliminará registros duplicados del historial local. Los archivos Excel no se verán afectados.');
+    if(confirmar) {
+      $('#estado').textContent = 'Limpiando duplicados...';
+      const duplicadosEliminados = await limpiarDuplicadosIndexedDB();
+      renderHistorial();
+      if(duplicadosEliminados >= 0) {
+        $('#estado').textContent = `✅ Limpieza completada: ${duplicadosEliminados} duplicados eliminados`;
+      }
+    }
+  });
+
+  // Botón de limpiar todo el historial
+  $('#btnLimpiarHistorial').addEventListener('click', async () => {
+    const confirmar = confirm('⚠️ ¿Estás SEGURO de que quieres eliminar TODO el historial?\n\nEsta acción eliminará TODAS las actas del historial local.\nLos archivos Excel no se verán afectados.\n\nEsta acción NO se puede deshacer.');
+    if(confirmar) {
+      const confirmar2 = confirm('⚠️ ÚLTIMA CONFIRMACIÓN:\n\n¿Estás completamente seguro de que quieres eliminar TODAS las actas?');
+      if(confirmar2) {
+        $('#estado').textContent = 'Limpiando historial completo...';
+        await limpiarHistorialCompleto();
+        $('#estado').textContent = '✅ Historial completamente limpiado';
+      }
+    }
+  });
   
   // Agregar botón alternativo de descarga
   $('#btnCompartir').addEventListener('contextmenu', (e)=>{
@@ -457,12 +541,29 @@ async function onGenerarPDF(){
       }
     }
     
-    const acta = await buildActaJSON();
-    const { blob, filename } = await buildPDF(acta);
+    // Verificar si ya existe una acta similar (mismo cliente, misma fecha) para evitar duplicados
+    const actaData = await buildActaJSON();
+    const existingActas = await idbAll();
+    const similarActa = existingActas.find(a => 
+      a.cliente?.numeroContrato === actaData.cliente.numeroContrato &&
+      a.cliente?.nit === actaData.cliente.nit &&
+      a.visita?.fecha_local === actaData.visita.fecha_local
+    );
+    
+    if(similarActa) {
+      const confirmar = confirm(`⚠️ Ya existe una acta para este cliente (${actaData.cliente.numeroContrato}) en la misma fecha.\n\n¿Deseas generar una nueva acta de todas formas?`);
+      if(!confirmar) {
+        $('#estado').textContent = 'Generación de PDF cancelada';
+        toast('Generación cancelada - ya existe una acta similar');
+        return;
+      }
+    }
+    
+    const { blob, filename } = await buildPDF(actaData);
     state.ultimoPDFBlob = blob;
-    acta.archivos = { pdf_filename: filename };
-    await idbPut(acta);
-    state.ultimoActa = acta;
+    actaData.archivos = { pdf_filename: filename };
+    await idbPut(actaData);
+    state.ultimoActa = actaData;
     $('#estado').textContent = `PDF listo: ${filename}`;
     renderHistorial();
     toast('PDF generado y guardado en historial');
@@ -786,25 +887,59 @@ function toast(msg){
 // ===== Historial =====
 async function renderHistorial(){
   const cont = $('#historial');
+  const statsEl = $('#historialStats');
   cont.innerHTML = '';
+  
   const all = (await idbAll()).sort((a,b)=> (a.visita.fecha_utc < b.visita.fecha_utc ? 1 : -1));
-  all.forEach(a=>{
+  
+  // Calcular estadísticas
+  const totalActas = all.length;
+  const duplicados = encontrarDuplicados(all);
+  const actasUnicas = totalActas - duplicados.length;
+  
+  // Mostrar estadísticas
+  statsEl.innerHTML = `
+    <div class="flex justify-between items-center">
+      <span><strong>Total:</strong> ${totalActas} actas</span>
+      <span><strong>Únicas:</strong> ${actasUnicas}</span>
+      <span class="text-orange-600"><strong>Duplicados:</strong> ${duplicados.length}</span>
+    </div>
+  `;
+  
+  all.forEach((a, index) => {
     const div = document.createElement('div');
-    div.className='flex items-center gap-2 bg-white border rounded p-2';
-      const empresaNombre = a.cliente?.nombreEmpresa || a.cliente?.razon || '-';
-      const contactoNombre = a.contacto?.nombre || '-';
-      const contrato = a.cliente?.numeroContrato || 'S/N';
-      div.innerHTML = `
-        <div class="flex-1">
-          <div class="font-medium">${a.id} – ${empresaNombre}</div>
-          <div class="text-xs text-slate-500">${a.visita.fecha_local} | ${contactoNombre} | Contrato: ${contrato}</div>
+    div.className='flex items-center gap-2 bg-white border rounded p-3';
+    
+    const empresaNombre = a.cliente?.nombreEmpresa || a.cliente?.razon || '-';
+    const contactoNombre = a.contacto?.nombre || '-';
+    const contrato = a.cliente?.numeroContrato || 'S/N';
+    
+    // Verificar si es duplicado
+    const esDuplicado = duplicados.some(d => d.id === a.id);
+    const duplicadoClass = esDuplicado ? 'border-orange-300 bg-orange-50' : '';
+    
+    div.innerHTML = `
+      <div class="flex-1 ${duplicadoClass} p-2 rounded">
+        <div class="font-medium flex items-center gap-2">
+          ${a.id} – ${empresaNombre}
+          ${esDuplicado ? '<span class="text-xs bg-orange-200 text-orange-800 px-1 rounded">DUPLICADO</span>' : ''}
         </div>
-      <button class="btn btn-xs" data-id="${a.id}" data-act="share">Compartir</button>
-      <button class="btn btn-xs btn-outline" data-id="${a.id}" data-act="excel">Añadir a Excel</button>
+        <div class="text-xs text-slate-500">${a.visita.fecha_local} | ${contactoNombre} | Contrato: ${contrato}</div>
+      </div>
+      <div class="flex gap-1">
+        <button class="btn btn-xs" data-id="${a.id}" data-act="share" title="Compartir PDF">📤</button>
+        <button class="btn btn-xs btn-outline" data-id="${a.id}" data-act="excel" title="Añadir a Excel">📊</button>
+        <button class="btn btn-xs bg-red-100 text-red-600 hover:bg-red-200" data-id="${a.id}" data-act="delete" title="Eliminar acta">🗑️</button>
+      </div>
     `;
+    
     div.addEventListener('click', async (ev)=>{
-      const btn = ev.target.closest('button'); if(!btn) return;
-      const id = btn.dataset.id; const act = btn.dataset.act;
+      const btn = ev.target.closest('button'); 
+      if(!btn) return;
+      
+      const id = btn.dataset.id; 
+      const act = btn.dataset.act;
+      
       if(act==='share'){
         // reconstruir PDF desde registro
         state.ultimoActa = a;
@@ -815,9 +950,66 @@ async function renderHistorial(){
       if(act==='excel'){
         await appendToExcelMaster([a]);
       }
+      if(act==='delete'){
+        const confirmar = confirm(`¿Estás seguro de que quieres eliminar la acta ${id}?\n\nEmpresa: ${empresaNombre}\nEsta acción no se puede deshacer.`);
+        if(confirmar) {
+          await eliminarActaPorId(id);
+          await renderHistorial(); // Recargar historial
+          toast(`✅ Acta ${id} eliminada`);
+        }
+      }
     });
     cont.appendChild(div);
   });
+}
+
+// Función para encontrar duplicados
+function encontrarDuplicados(actas) {
+  const duplicados = [];
+  const seen = new Set();
+  
+  for(const acta of actas) {
+    const contentHash = `${acta.cliente?.numeroContrato||''}_${acta.cliente?.nit||''}_${acta.visita?.fecha_local||''}`;
+    if(seen.has(contentHash)) {
+      duplicados.push(acta);
+    } else {
+      seen.add(contentHash);
+    }
+  }
+  
+  return duplicados;
+}
+
+// Función para eliminar una acta específica
+async function eliminarActaPorId(id) {
+  try {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    await new Promise((resolve, reject) => {
+      const request = tx.objectStore(DB_STORE).delete(id);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch(error) {
+    console.error('Error eliminando acta:', error);
+    throw error;
+  }
+}
+
+// Función para limpiar todo el historial
+async function limpiarHistorialCompleto() {
+  try {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    await new Promise((resolve, reject) => {
+      tx.objectStore(DB_STORE).clear();
+      tx.oncomplete = resolve;
+      tx.onerror = reject;
+    });
+    toast('✅ Historial completamente limpiado');
+    await renderHistorial();
+  } catch(error) {
+    console.error('Error limpiando historial:', error);
+    toast('❌ Error limpiando historial');
+  }
 }
 
 // ====== BLOQUE 2 – EXCEL MAESTRO ======
@@ -887,17 +1079,49 @@ function mergeRowsIntoSheets(wb, actas){
   const wsA = wb.Sheets['Actas'];
   const rangeA = XLSX.utils.decode_range(wsA['!ref'] || 'A1:A1');
 
-  // Build existing IDs set para anti-duplicados
+  // Build existing IDs set para anti-duplicados (por ID exacto)
   const existingIds = new Set();
+  // Build existing content set para anti-duplicados (por contenido similar)
+  const existingContent = new Set();
+  
   for(let R=1; R<=rangeA.e.r; R++){
     const cell = wsA[XLSX.utils.encode_cell({c:0,r:R})];
     if(cell && cell.v) existingIds.add(String(cell.v));
+    
+    // Crear un hash del contenido para detectar duplicados por contenido
+    const contratoCell = wsA[XLSX.utils.encode_cell({c:9,r:R})]; // numero_contrato
+    const nitCell = wsA[XLSX.utils.encode_cell({c:10,r:R})]; // nit
+    const fechaCell = wsA[XLSX.utils.encode_cell({c:1,r:R})]; // fecha_local
+    
+    if(contratoCell && nitCell && fechaCell) {
+      const contentHash = `${contratoCell.v}_${nitCell.v}_${fechaCell.v}`;
+      existingContent.add(contentHash);
+    }
   }
 
   let rowsA = [];
+  let duplicatesSkipped = 0;
 
   for(const a of actas){
-    if(existingIds.has(a.id)) continue;
+    // Verificar duplicado por ID exacto
+    if(existingIds.has(a.id)) {
+      console.log(`Saltando acta duplicada por ID: ${a.id}`);
+      duplicatesSkipped++;
+      continue;
+    }
+    
+    // Verificar duplicado por contenido similar
+    const contentHash = `${a.cliente?.numeroContrato||''}_${a.cliente?.nit||''}_${a.visita?.fecha_local||''}`;
+    if(existingContent.has(contentHash)) {
+      console.log(`Saltando acta duplicada por contenido: ${a.cliente?.numeroContrato} - ${a.cliente?.nit} - ${a.visita?.fecha_local}`);
+      duplicatesSkipped++;
+      continue;
+    }
+    
+    // Agregar a los sets para evitar duplicados en el mismo lote
+    existingIds.add(a.id);
+    existingContent.add(contentHash);
+    
     rowsA.push([
       a.id,
       a.visita?.fecha_local||'',
@@ -945,6 +1169,11 @@ function mergeRowsIntoSheets(wb, actas){
 
   if(rowsA.length){
     XLSX.utils.sheet_add_aoa(wsA, rowsA, { origin: -1 });
+  }
+
+  // Informar sobre duplicados encontrados
+  if(duplicatesSkipped > 0) {
+    console.log(`Se saltaron ${duplicatesSkipped} actas duplicadas`);
   }
 
   // Ajuste de rango
