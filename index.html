@@ -283,8 +283,11 @@
         <p class="text-sm mobile:text-xs opacity-90 mobile:hidden">Visita de fidelización – Firma en sitio – PDF – Excel maestro</p>
         <p class="text-xs opacity-90 md:hidden">Sistema de actas digitales</p>
       </div>
-      <div class="mobile:hidden">
-        <span class="text-xs bg-white/20 px-2 py-1 rounded-full">PWA</span>
+      <div class="flex items-center gap-2">
+        <a href="./dashboard.html" class="text-xs bg-white/20 px-2 py-1 rounded-full hover:bg-white/30 transition mobile:hidden">
+          📊 Dashboard
+        </a>
+        <span class="text-xs bg-white/20 px-2 py-1 rounded-full mobile:hidden">PWA</span>
       </div>
     </div>
   </header>
@@ -622,6 +625,15 @@
     <section class="card mobile:p-3">
       <h2 class="card-title mobile:text-lg mb-4">📚 Historial de Actas</h2>
       
+      <!-- Botón prominente para Dashboard -->
+      <div class="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-lg text-center">
+        <h3 class="text-lg font-semibold text-blue-800 mb-2">📊 Dashboard de Análisis</h3>
+        <p class="text-sm text-blue-600 mb-3">Visualiza gráficos, estadísticas y análisis detallados de tus actas</p>
+        <a href="./dashboard.html" class="btn btn-primary mobile:w-full mobile:py-3 inline-flex items-center justify-center gap-2">
+          📈 Ver Dashboard
+        </a>
+      </div>
+      
       <!-- Estadísticas -->
       <div id="historialStats" class="text-sm text-slate-600 mb-4 p-3 bg-slate-50 rounded-lg border"></div>
       
@@ -643,6 +655,13 @@
       <div id="historial" class="space-y-3 text-sm"></div>
     </section>
   </main>
+
+  <!-- Botón flotante para Dashboard (solo móvil) -->
+  <div class="fixed bottom-4 right-4 z-50 md:hidden">
+    <a href="./dashboard.html" class="bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition-all duration-200 flex items-center justify-center">
+      <span class="text-lg">📊</span>
+    </a>
+  </div>
 
   <script>
     // Habilitar/deshabilitar campos según selección
