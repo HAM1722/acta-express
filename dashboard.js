@@ -46,10 +46,10 @@ async function init(){
 }
 
 function bindUI(){
+  $('#btnCargarExcel').addEventListener('click', cargarArchivoExcel);
   $('#btnCargarDatos').addEventListener('click', loadDataFromIndexedDB);
   $('#btnGenerarReportePDF').addEventListener('click', generarDashboardPDF);
   $('#btnGenerarReporte').addEventListener('click', generarReporteExcel);
-  $('#btnExportarExcelMaestro').addEventListener('click', exportarExcelMaestro);
   $('#btnDebug').addEventListener('click', debugInfo);
   $('#btnAplicarFiltros').addEventListener('click', aplicarFiltros);
   $('#btnLimpiarFiltros').addEventListener('click', limpiarFiltros);
@@ -97,6 +97,251 @@ function setupDateFilters(){
   
   // Fecha hasta: hoy
   $('#filtroFechaHasta').value = new Date().toISOString().split('T')[0];
+}
+
+// ===== CARGA DESDE ARCHIVO EXCEL =====
+async function cargarArchivoExcel() {
+  try {
+    $('#estadoDatos').textContent = '📊 Seleccionando archivo Excel...';
+    
+    // Crear input de archivo
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx,.xls';
+    input.style.display = 'none';
+    
+    // Agregar al DOM temporalmente
+    document.body.appendChild(input);
+    
+    // Esperar a que el usuario seleccione un archivo
+    const archivo = await new Promise((resolve, reject) => {
+      input.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          resolve(file);
+        } else {
+          reject(new Error('No se seleccionó ningún archivo'));
+        }
+      });
+      
+      input.addEventListener('cancel', () => {
+        reject(new Error('Selección de archivo cancelada'));
+      });
+      
+      // Abrir el selector de archivos
+      input.click();
+    });
+    
+    // Limpiar el input temporal
+    document.body.removeChild(input);
+    
+    $('#estadoDatos').textContent = '📖 Procesando archivo Excel...';
+    
+    // Leer el archivo Excel
+    const data = await leerArchivoExcel(archivo);
+    
+    if (data.length === 0) {
+      $('#estadoDatos').textContent = '⚠️ El archivo Excel está vacío o no tiene datos válidos';
+      return;
+    }
+    
+    // Procesar datos del Excel
+    state.data.actas = procesarDatosExcel(data);
+    state.data.compromisos = []; // Los compromisos no están en el Excel maestro
+    
+    $('#estadoDatos').textContent = `✅ Cargadas ${state.data.actas.length} actas desde Excel`;
+    
+    // Aplicar filtros iniciales
+    aplicarFiltros();
+    
+    // Mostrar interfaz
+    mostrarDashboard();
+    
+    // Generar gráficos
+    generarGraficos();
+    
+    // Llenar filtros
+    llenarFiltros();
+    
+    // Llenar tablas
+    llenarTablas();
+    
+    $('#btnGenerarReporte').disabled = false;
+    $('#btnGenerarReportePDF').disabled = false;
+    
+    toast(`✅ Excel cargado: ${state.data.actas.length} actas procesadas`);
+    
+  } catch (error) {
+    console.error('Error cargando Excel:', error);
+    $('#estadoDatos').textContent = `❌ Error cargando Excel: ${error.message}`;
+    toast('❌ Error cargando archivo Excel');
+  }
+}
+
+async function leerArchivoExcel(archivo) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        
+        // Buscar la hoja 'Actas' o la primera hoja
+        const sheetName = workbook.SheetNames.find(name => 
+          name.toLowerCase().includes('actas')
+        ) || workbook.SheetNames[0];
+        
+        if (!sheetName) {
+          reject(new Error('No se encontró una hoja válida en el archivo Excel'));
+          return;
+        }
+        
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        console.log(`Hoja encontrada: ${sheetName}`);
+        console.log(`Datos leídos: ${jsonData.length} filas`);
+        
+        resolve(jsonData);
+      } catch (error) {
+        reject(new Error(`Error procesando Excel: ${error.message}`));
+      }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Error leyendo el archivo'));
+    };
+    
+    reader.readAsArrayBuffer(archivo);
+  });
+}
+
+function procesarDatosExcel(data) {
+  if (data.length < 2) {
+    throw new Error('El archivo Excel debe tener al menos una fila de encabezados y una fila de datos');
+  }
+  
+  // Primera fila son los encabezados
+  const headers = data[0];
+  console.log('Encabezados encontrados:', headers);
+  
+  // Buscar índices de columnas importantes
+  const columnIndexes = {};
+  headers.forEach((header, index) => {
+    if (header) {
+      const headerStr = String(header).toLowerCase().trim();
+      
+      // Mapear encabezados a índices
+      if (headerStr.includes('id_acta') || headerStr.includes('id')) {
+        columnIndexes.id_acta = index;
+      } else if (headerStr.includes('fecha_local') || headerStr.includes('fecha')) {
+        columnIndexes.fecha_local = index;
+      } else if (headerStr.includes('ejecutivo_nombre') || headerStr.includes('ejecutivo')) {
+        columnIndexes.ejecutivo_nombre = index;
+      } else if (headerStr.includes('zona')) {
+        columnIndexes.zona = index;
+      } else if (headerStr.includes('nombre_empresa') || headerStr.includes('empresa')) {
+        columnIndexes.nombre_empresa = index;
+      } else if (headerStr.includes('contacto_nombre') || headerStr.includes('contacto')) {
+        columnIndexes.contacto_nombre = index;
+      } else if (headerStr.includes('numero_contrato') || headerStr.includes('contrato')) {
+        columnIndexes.numero_contrato = index;
+      } else if (headerStr.includes('tema_energia_eficiente')) {
+        columnIndexes.tema_energia_eficiente = index;
+      } else if (headerStr.includes('tema_conexion_emcali')) {
+        columnIndexes.tema_conexion_emcali = index;
+      } else if (headerStr.includes('tema_etiqueta_retiq')) {
+        columnIndexes.tema_etiqueta_retiq = index;
+      } else if (headerStr.includes('tema_ahorro_energia')) {
+        columnIndexes.tema_ahorro_energia = index;
+      } else if (headerStr.includes('tema_consumo_energia')) {
+        columnIndexes.tema_consumo_energia = index;
+      }
+    }
+  });
+  
+  console.log('Índices de columnas mapeados:', columnIndexes);
+  
+  // Procesar filas de datos (saltando la primera fila de encabezados)
+  const actas = [];
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    
+    // Saltar filas vacías
+    if (!row || row.every(cell => !cell || String(cell).trim() === '')) {
+      continue;
+    }
+    
+    const acta = {
+      id_acta: getCellValue(row, columnIndexes.id_acta) || `EXCEL-${i}`,
+      fecha_local: getCellValue(row, columnIndexes.fecha_local) || '',
+      fecha_utc: '', // No disponible en Excel
+      ejecutivo_nombre: getCellValue(row, columnIndexes.ejecutivo_nombre) || '',
+      ejecutivo_correo: '',
+      zona: getCellValue(row, columnIndexes.zona) || '',
+      barrio: '',
+      direccion: '',
+      nombre_empresa: getCellValue(row, columnIndexes.nombre_empresa) || '',
+      numero_contrato: getCellValue(row, columnIndexes.numero_contrato) || '',
+      cliente_nit: '',
+      actividad_economica: '',
+      consumo_kwh: '',
+      tiene_consumo_kvar: '',
+      consumo_kvar: '',
+      exencion_contribucion: '',
+      fecha_actualizacion: '',
+      contacto_nombre: getCellValue(row, columnIndexes.contacto_nombre) || '',
+      contacto_cargo: '',
+      contacto_correo: '',
+      contacto_celular: '',
+      tema_energia_eficiente: getCellValue(row, columnIndexes.tema_energia_eficiente) || 'No',
+      desc_energia_eficiente: '',
+      tema_conexion_emcali: getCellValue(row, columnIndexes.tema_conexion_emcali) || 'No',
+      desc_conexion_emcali: '',
+      tema_etiqueta_retiq: getCellValue(row, columnIndexes.tema_etiqueta_retiq) || 'No',
+      desc_etiqueta_retiq: '',
+      tema_ahorro_energia: getCellValue(row, columnIndexes.tema_ahorro_energia) || 'No',
+      desc_ahorro_energia: '',
+      tema_consumo_energia: getCellValue(row, columnIndexes.tema_consumo_energia) || 'No',
+      desc_consumo_energia: '',
+      incidencias_variaciones: '',
+      incidencias_variaciones_cant: '',
+      incidencias_cortes: '',
+      incidencias_cortes_cant: '',
+      observaciones: '',
+      firmante_nombre: '',
+      geo_lat: '',
+      geo_lng: '',
+      hash_sha256: '',
+      pdf_filename: '',
+      formato: 'excel'
+    };
+    
+    actas.push(acta);
+  }
+  
+  console.log(`Procesadas ${actas.length} actas desde Excel`);
+  return actas;
+}
+
+function getCellValue(row, columnIndex) {
+  if (columnIndex === undefined || columnIndex === null || !row[columnIndex]) {
+    return '';
+  }
+  
+  const value = row[columnIndex];
+  
+  // Convertir diferentes tipos de valores
+  if (value instanceof Date) {
+    return value.toLocaleString();
+  }
+  
+  if (typeof value === 'number') {
+    return String(value);
+  }
+  
+  return String(value).trim();
 }
 
 // ===== CARGA DESDE INDEXEDDB =====
