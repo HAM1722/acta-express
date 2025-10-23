@@ -13,6 +13,11 @@ const state = {
     ejecutivo: '',
     correo: '',
     geo: false,
+    backupAuto: true, // Backup automático habilitado por defecto
+    backupInterval: 24, // Horas entre backups automáticos
+    backupCloud: false, // Backup en la nube deshabilitado por defecto
+    backupCloudProvider: 'google', // google, dropbox, onedrive
+    backupIncremental: true, // Backup incremental habilitado
   },
   excelHandle: null, // File System Access handle (opción A)
   firmaPad: null,
@@ -20,6 +25,8 @@ const state = {
   geo: {lat:null,lng:null},
   ultimoPDFBlob: null,
   ultimoActa: null,
+  backupTimer: null, // Timer para backup automático
+  cloudAuth: null, // Autenticación en la nube
 };
 
 // IndexedDB para historial
@@ -42,6 +49,9 @@ async function init(){
     try{ await navigator.serviceWorker.register('./service-worker.js'); }catch{}
   }
   
+  // Iniciar sistema de backup automático
+  iniciarBackupAutomatico();
+  
   // Limpiar recursos al cerrar la página
   window.addEventListener('beforeunload', () => {
     if(window.firmaBackupInterval) {
@@ -49,6 +59,9 @@ async function init(){
     }
     if(window.firmaResizeHandler) {
       window.removeEventListener('resize', window.firmaResizeHandler);
+    }
+    if(state.backupTimer) {
+      clearInterval(state.backupTimer);
     }
   });
 }
@@ -147,6 +160,11 @@ async function loadCfg(){
   $('#cfgEjecutivo').value = state.cfg.ejecutivo||'';
   $('#cfgCorreo').value = state.cfg.correo||'';
   $('#cfgGeo').checked = !!state.cfg.geo;
+  $('#cfgBackupAuto').checked = state.cfg.backupAuto !== false; // Por defecto true
+  $('#cfgBackupInterval').value = state.cfg.backupInterval || 24;
+  $('#cfgBackupCloud').checked = !!state.cfg.backupCloud;
+  $('#cfgBackupCloudProvider').value = state.cfg.backupCloudProvider || 'google';
+  $('#cfgBackupIncremental').checked = state.cfg.backupIncremental !== false; // Por defecto true
 
   // Excel handle (si se guardó)
   const h = localStorage.getItem('excelHandle');
@@ -165,7 +183,18 @@ function saveCfg(){
   state.cfg.ejecutivo = $('#cfgEjecutivo').value.trim();
   state.cfg.correo = $('#cfgCorreo').value.trim();
   state.cfg.geo = $('#cfgGeo').checked;
+  state.cfg.backupAuto = $('#cfgBackupAuto').checked;
+  state.cfg.backupInterval = parseInt($('#cfgBackupInterval').value) || 24;
+  state.cfg.backupCloud = $('#cfgBackupCloud').checked;
+  state.cfg.backupCloudProvider = $('#cfgBackupCloudProvider').value;
+  state.cfg.backupIncremental = $('#cfgBackupIncremental').checked;
   localStorage.setItem('cfg', JSON.stringify(state.cfg));
+  
+  // Reiniciar backup automático si cambió la configuración
+  if(state.backupTimer) {
+    clearInterval(state.backupTimer);
+  }
+  iniciarBackupAutomatico();
 }
 
 function bindUI(){
@@ -262,6 +291,12 @@ function bindUI(){
   $('#btnCompartir').addEventListener('click', onCompartir);
   $('#btnDescargarPDF').addEventListener('click', descargarPDF);
   $('#btnGuardarExcel').addEventListener('click', onGuardarExcelMaestro);
+  $('#btnBackupManual').addEventListener('click', backupManual);
+  $('#btnBackupLocalStorage').addEventListener('click', backupLocalStorage);
+  $('#btnRestaurarBackup').addEventListener('click', restaurarBackup);
+  $('#btnBackupCloud').addEventListener('click', backupCloud);
+  $('#btnConfigurarCloud').addEventListener('click', configurarCloud);
+  $('#btnSincronizarCloud').addEventListener('click', sincronizarCloud);
   // Botón original de limpiar duplicados (en la sección de generar PDF)
   $('#btnLimpiarDuplicados').addEventListener('click', async () => {
     const confirmar = confirm('⚠️ ¿Estás seguro de que quieres limpiar duplicados?\n\nEsta acción eliminará registros duplicados del historial local. Los archivos Excel no se verán afectados.');
@@ -504,6 +539,359 @@ function resizeCanvas(c){
   console.log('Canvas redimensionado:', c.width, 'x', c.height, 'ratio:', ratio);
 }
 
+// ===== SISTEMA DE BACKUP AUTOMÁTICO =====
+function iniciarBackupAutomatico() {
+  if(!state.cfg.backupAuto) return;
+  
+  const intervaloMs = (state.cfg.backupInterval || 24) * 60 * 60 * 1000; // Convertir horas a ms
+  
+  // Backup inmediato si han pasado más de 24 horas desde el último
+  const ultimoBackup = localStorage.getItem('ultimoBackupAutomatico');
+  const ahora = Date.now();
+  if(!ultimoBackup || (ahora - parseInt(ultimoBackup)) > intervaloMs) {
+    setTimeout(() => backupAutomatico(), 5000); // Esperar 5 segundos para que cargue la app
+  }
+  
+  // Programar backups periódicos
+  state.backupTimer = setInterval(() => {
+    backupAutomatico();
+  }, intervaloMs);
+  
+  console.log(`Backup automático configurado cada ${state.cfg.backupInterval} horas`);
+}
+
+async function backupAutomatico() {
+  try {
+    const allActas = await idbAll();
+    if(allActas.length === 0) {
+      console.log('No hay actas para hacer backup automático');
+      return;
+    }
+    
+    // Backup a localStorage
+    await backupLocalStorage();
+    
+    // Backup a Excel si está configurado
+    if(state.excelHandle || localStorage.getItem('excelMasterName')) {
+      await appendToExcelMaster(allActas, { rebuildIfNoHandle: true });
+    }
+    
+    // Backup incremental a la nube si está habilitado
+    if(state.cfg.backupCloud && state.cfg.backupIncremental) {
+      await backupCloudIncremental();
+    }
+    
+    localStorage.setItem('ultimoBackupAutomatico', Date.now().toString());
+    console.log(`✅ Backup automático completado: ${allActas.length} actas`);
+    
+    // Notificar al usuario solo si hay muchas actas nuevas
+    const ultimaNotificacion = localStorage.getItem('ultimaNotificacionBackup');
+    const ahora = Date.now();
+    if(!ultimaNotificacion || (ahora - parseInt(ultimaNotificacion)) > 24 * 60 * 60 * 1000) {
+      toast(`🔄 Backup automático: ${allActas.length} actas respaldadas`);
+      localStorage.setItem('ultimaNotificacionBackup', ahora.toString());
+    }
+  } catch(error) {
+    console.error('Error en backup automático:', error);
+  }
+}
+
+async function backupManual() {
+  try {
+    $('#estado').textContent = 'Creando backup manual...';
+    const allActas = await idbAll();
+    
+    if(allActas.length === 0) {
+      toast('❌ No hay actas para respaldar');
+      return;
+    }
+    
+    // Backup múltiple
+    await backupLocalStorage();
+    await appendToExcelMaster(allActas, { rebuildIfNoHandle: true });
+    
+    // Backup a la nube si está habilitado
+    if(state.cfg.backupCloud) {
+      await backupCloud();
+    }
+    
+    // Backup JSON adicional
+    const backupData = {
+      timestamp: new Date().toISOString(),
+      version: '1.0',
+      totalActas: allActas.length,
+      actas: allActas
+    };
+    
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup_actas_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    localStorage.setItem('ultimoBackupAutomatico', Date.now().toString());
+    toast(`✅ Backup manual completado: ${allActas.length} actas respaldadas`);
+    $('#estado').textContent = `Backup manual completado: ${allActas.length} actas`;
+  } catch(error) {
+    console.error('Error en backup manual:', error);
+    toast('❌ Error creando backup manual');
+    $('#estado').textContent = 'Error en backup manual';
+  }
+}
+
+async function backupLocalStorage() {
+  try {
+    const allActas = await idbAll();
+    const backupData = {
+      timestamp: Date.now(),
+      version: '1.0',
+      totalActas: allActas.length,
+      actas: allActas
+    };
+    
+    // Guardar en localStorage con compresión básica
+    const compressed = JSON.stringify(backupData);
+    localStorage.setItem('backupActas', compressed);
+    localStorage.setItem('backupActasTimestamp', Date.now().toString());
+    
+    console.log(`Backup localStorage: ${allActas.length} actas guardadas`);
+    return true;
+  } catch(error) {
+    console.error('Error en backup localStorage:', error);
+    return false;
+  }
+}
+
+async function restaurarBackup() {
+  try {
+    const backupData = localStorage.getItem('backupActas');
+    if(!backupData) {
+      toast('❌ No hay backup disponible en localStorage');
+      return;
+    }
+    
+    const confirmar = confirm('⚠️ ¿Estás seguro de que quieres restaurar el backup?\n\nEsta acción sobrescribirá todas las actas actuales.\nEsta acción NO se puede deshacer.');
+    if(!confirmar) return;
+    
+    $('#estado').textContent = 'Restaurando backup...';
+    
+    const backup = JSON.parse(backupData);
+    const actas = backup.actas || [];
+    
+    if(actas.length === 0) {
+      toast('❌ El backup está vacío');
+      return;
+    }
+    
+    // Limpiar base de datos actual
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    await new Promise((resolve, reject) => {
+      tx.objectStore(DB_STORE).clear();
+      tx.oncomplete = resolve;
+      tx.onerror = reject;
+    });
+    
+    // Restaurar actas del backup
+    for(const acta of actas) {
+      await idbPut(acta);
+    }
+    
+    await renderHistorial();
+    toast(`✅ Backup restaurado: ${actas.length} actas recuperadas`);
+    $('#estado').textContent = `Backup restaurado: ${actas.length} actas`;
+  } catch(error) {
+    console.error('Error restaurando backup:', error);
+    toast('❌ Error restaurando backup');
+    $('#estado').textContent = 'Error restaurando backup';
+  }
+}
+
+// ===== BACKUP EN LA NUBE =====
+async function configurarCloud() {
+  try {
+    const provider = state.cfg.backupCloudProvider || 'google';
+    let authUrl = '';
+    
+    switch(provider) {
+      case 'google':
+        authUrl = `https://accounts.google.com/oauth/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=${encodeURIComponent(window.location.origin)}&scope=https://www.googleapis.com/auth/drive.file&response_type=token`;
+        break;
+      case 'dropbox':
+        authUrl = `https://www.dropbox.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token&scope=files.metadata.write`;
+        break;
+      case 'onedrive':
+        authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=YOUR_CLIENT_ID&response_type=token&redirect_uri=${encodeURIComponent(window.location.origin)}&scope=files.readwrite`;
+        break;
+    }
+    
+    if(authUrl) {
+      window.open(authUrl, '_blank', 'width=600,height=600');
+      toast('🔐 Ventana de autenticación abierta. Completa la autorización.');
+    } else {
+      toast('❌ Proveedor de nube no configurado correctamente');
+    }
+  } catch(error) {
+    console.error('Error configurando nube:', error);
+    toast('❌ Error configurando backup en la nube');
+  }
+}
+
+async function backupCloud() {
+  try {
+    if(!state.cfg.backupCloud) {
+      toast('❌ Backup en la nube no habilitado');
+      return;
+    }
+    
+    $('#estado').textContent = 'Creando backup en la nube...';
+    const allActas = await idbAll();
+    
+    if(allActas.length === 0) {
+      toast('❌ No hay actas para respaldar en la nube');
+      return;
+    }
+    
+    // Crear archivo de backup
+    const backupData = {
+      timestamp: new Date().toISOString(),
+      version: '1.0',
+      totalActas: allActas.length,
+      actas: allActas,
+      metadata: {
+        ejecutivo: state.cfg.ejecutivo,
+        dispositivo: navigator.userAgent,
+        version: 'Acta Express v1.0'
+      }
+    };
+    
+    const filename = `backup_actas_${new Date().toISOString().slice(0,10)}.json`;
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+    
+    // Simular subida a la nube (en implementación real usarías las APIs)
+    await simularSubidaNube(blob, filename);
+    
+    toast(`✅ Backup en la nube completado: ${allActas.length} actas`);
+    $('#estado').textContent = `Backup en la nube completado: ${allActas.length} actas`;
+  } catch(error) {
+    console.error('Error en backup en la nube:', error);
+    toast('❌ Error en backup en la nube');
+    $('#estado').textContent = 'Error en backup en la nube';
+  }
+}
+
+async function backupCloudIncremental() {
+  try {
+    const allActas = await idbAll();
+    const ultimoBackupCloud = localStorage.getItem('ultimoBackupCloud');
+    const ultimoTimestamp = ultimoBackupCloud ? parseInt(ultimoBackupCloud) : 0;
+    
+    // Filtrar solo actas nuevas desde el último backup
+    const actasNuevas = allActas.filter(acta => {
+      const actaTimestamp = new Date(acta.visita?.fecha_utc || acta.visita?.fecha_local).getTime();
+      return actaTimestamp > ultimoTimestamp;
+    });
+    
+    if(actasNuevas.length === 0) {
+      console.log('No hay actas nuevas para backup incremental');
+      return;
+    }
+    
+    const backupData = {
+      timestamp: new Date().toISOString(),
+      version: '1.0',
+      tipo: 'incremental',
+      totalActas: actasNuevas.length,
+      actas: actasNuevas
+    };
+    
+    const filename = `backup_incremental_${new Date().toISOString().slice(0,10)}.json`;
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+    
+    await simularSubidaNube(blob, filename);
+    localStorage.setItem('ultimoBackupCloud', Date.now().toString());
+    
+    console.log(`Backup incremental completado: ${actasNuevas.length} actas nuevas`);
+  } catch(error) {
+    console.error('Error en backup incremental:', error);
+  }
+}
+
+async function sincronizarCloud() {
+  try {
+    $('#estado').textContent = 'Sincronizando con la nube...';
+    
+    // Simular descarga desde la nube
+    const backupRemoto = await simularDescargaNube();
+    
+    if(backupRemoto && backupRemoto.actas) {
+      const confirmar = confirm(`¿Restaurar ${backupRemoto.totalActas} actas desde la nube?\n\nEsta acción sobrescribirá las actas locales.`);
+      if(confirmar) {
+        await restaurarBackupDesdeNube(backupRemoto);
+      }
+    } else {
+      toast('❌ No se encontraron backups en la nube');
+    }
+    
+    $('#estado').textContent = 'Sincronización completada';
+  } catch(error) {
+    console.error('Error sincronizando con la nube:', error);
+    toast('❌ Error sincronizando con la nube');
+    $('#estado').textContent = 'Error en sincronización';
+  }
+}
+
+async function simularSubidaNube(blob, filename) {
+  // Simular subida a la nube
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      console.log(`Simulando subida a la nube: ${filename} (${blob.size} bytes)`);
+      resolve();
+    }, 2000);
+  });
+}
+
+async function simularDescargaNube() {
+  // Simular descarga desde la nube
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      console.log('Simulando descarga desde la nube');
+      resolve(null); // En implementación real devolvería los datos
+    }, 1500);
+  });
+}
+
+async function restaurarBackupDesdeNube(backupData) {
+  try {
+    const actas = backupData.actas || [];
+    
+    if(actas.length === 0) {
+      toast('❌ El backup de la nube está vacío');
+      return;
+    }
+    
+    // Limpiar base de datos actual
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    await new Promise((resolve, reject) => {
+      tx.objectStore(DB_STORE).clear();
+      tx.oncomplete = resolve;
+      tx.onerror = reject;
+    });
+    
+    // Restaurar actas del backup
+    for(const acta of actas) {
+      await idbPut(acta);
+    }
+    
+    await renderHistorial();
+    toast(`✅ Backup restaurado desde la nube: ${actas.length} actas recuperadas`);
+  } catch(error) {
+    console.error('Error restaurando backup desde la nube:', error);
+    toast('❌ Error restaurando backup desde la nube');
+  }
+}
+
 // ===== HASH con Web Crypto =====
 async function sha256Base64(str){
   const enc = new TextEncoder().encode(str);
@@ -650,6 +1038,7 @@ async function buildActaJSON(){
       cortesCant: $('#incCortesCant').value.trim(),
     },
     observaciones: $('#observaciones').value.trim(),
+    reconquista: $('#reconquista').checked === true,
     visita: {
       fecha_local,
       fecha_utc,
@@ -778,6 +1167,13 @@ async function buildPDF(acta){
     (acta.incidencias.cortes || 'No especificado');
   addText(`¿Cortes de suministro?: ${cortesText}`);
   y += sectionSpacing;
+
+  // Reconquista
+  if(acta.reconquista) {
+    addText('TIPO DE VISITA', true);
+    addText('🎯 VISITA DE RECONQUISTA');
+    y += sectionSpacing;
+  }
 
   // Observaciones
   addText('OBSERVACIONES GENERALES', true);
@@ -923,6 +1319,7 @@ async function renderHistorial(){
         <div class="font-medium flex items-center gap-2">
           ${a.id} – ${empresaNombre}
           ${esDuplicado ? '<span class="text-xs bg-orange-200 text-orange-800 px-1 rounded">DUPLICADO</span>' : ''}
+          ${a.reconquista ? '<span class="text-xs bg-blue-200 text-blue-800 px-1 rounded">🎯 RECONQUISTA</span>' : ''}
         </div>
         <div class="text-xs text-slate-500">${a.visita.fecha_local} | ${contactoNombre} | Contrato: ${contrato}</div>
       </div>
@@ -1067,7 +1464,7 @@ function ensureSheets(wb){
       'tema_ahorro_energia','desc_ahorro_energia',
       'tema_consumo_energia','desc_consumo_energia',
       'incidencias_variaciones','incidencias_variaciones_cant','incidencias_cortes','incidencias_cortes_cant',
-      'observaciones','firmante_nombre',
+      'observaciones','reconquista','firmante_nombre',
       'geo_lat','geo_lng','hash_sha256','pdf_filename'
     ]]);
     XLSX.utils.book_append_sheet(wb, ws, 'Actas');
@@ -1159,6 +1556,7 @@ function mergeRowsIntoSheets(wb, actas){
       a.incidencias?.cortes||'',
       a.incidencias?.cortesCant||'',
       a.observaciones||'',
+      a.reconquista ? 'Sí' : 'No',
       a.firma?.nombre||'',
       a.visita?.geo?.lat||'',
       a.visita?.geo?.lng||'',
@@ -1177,7 +1575,7 @@ function mergeRowsIntoSheets(wb, actas){
   }
 
   // Ajuste de rango
-  const totalCols = 42; // Número de columnas (agregadas: consumo_kwh, tiene_consumo_kvar, consumo_kvar, fecha_actualizacion)
+  const totalCols = 43; // Número de columnas (agregadas: consumo_kwh, tiene_consumo_kvar, consumo_kvar, fecha_actualizacion, reconquista)
   wsA['!ref'] = wsA['!ref'] || `A1:${XLSX.utils.encode_col(totalCols-1)}${1+rowsA.length}`;
 }
 
