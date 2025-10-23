@@ -49,6 +49,9 @@ async function init(){
     try{ await navigator.serviceWorker.register('./service-worker.js'); }catch{}
   }
   
+  // Inicializar tokens de Google Drive
+  inicializarTokensGoogle();
+  
   // Iniciar sistema de backup automático
   iniciarBackupAutomatico();
   
@@ -708,29 +711,284 @@ async function restaurarBackup() {
   }
 }
 
+// ===== GOOGLE DRIVE API REAL =====
+const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID'; // Reemplazar con tu Client ID real
+const GOOGLE_API_KEY = 'YOUR_GOOGLE_API_KEY'; // Reemplazar con tu API Key real
+const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive.file';
+
+let googleAccessToken = null;
+let googleRefreshToken = null;
+
+// Función para autenticar con Google Drive
+async function autenticarGoogleDrive() {
+  try {
+    // Verificar si ya tenemos un token válido
+    if(googleAccessToken && await verificarTokenGoogle()) {
+      return googleAccessToken;
+    }
+    
+    // Solicitar autorización
+    const authUrl = `https://accounts.google.com/oauth/authorize?` +
+      `client_id=${GOOGLE_CLIENT_ID}&` +
+      `redirect_uri=${encodeURIComponent(window.location.origin)}&` +
+      `scope=${encodeURIComponent(GOOGLE_SCOPES)}&` +
+      `response_type=code&` +
+      `access_type=offline&` +
+      `prompt=consent`;
+    
+    // Abrir ventana de autorización
+    const authWindow = window.open(authUrl, 'google_auth', 'width=600,height=600,scrollbars=yes,resizable=yes');
+    
+    // Escuchar el código de autorización
+    return new Promise((resolve, reject) => {
+      const checkAuth = setInterval(() => {
+        try {
+          if(authWindow.closed) {
+            clearInterval(checkAuth);
+            reject(new Error('Autorización cancelada'));
+            return;
+          }
+          
+          // Verificar si la URL contiene el código
+          const url = authWindow.location.href;
+          if(url.includes('code=')) {
+            clearInterval(checkAuth);
+            authWindow.close();
+            
+            const code = url.split('code=')[1].split('&')[0];
+            intercambiarCodigoPorToken(code)
+              .then(token => resolve(token))
+              .catch(err => reject(err));
+          }
+        } catch(e) {
+          // Ventana aún cargando
+        }
+      }, 1000);
+      
+      // Timeout después de 5 minutos
+      setTimeout(() => {
+        clearInterval(checkAuth);
+        authWindow.close();
+        reject(new Error('Timeout de autorización'));
+      }, 300000);
+    });
+  } catch(error) {
+    console.error('Error autenticando con Google Drive:', error);
+    throw error;
+  }
+}
+
+// Intercambiar código de autorización por token de acceso
+async function intercambiarCodigoPorToken(code) {
+  try {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_API_KEY,
+        code: code,
+        grant_type: 'authorization_code',
+        redirect_uri: window.location.origin
+      })
+    });
+    
+    if(!response.ok) {
+      throw new Error(`Error HTTP: ${response.status}`);
+    }
+    
+    const tokenData = await response.json();
+    googleAccessToken = tokenData.access_token;
+    googleRefreshToken = tokenData.refresh_token;
+    
+    // Guardar tokens en localStorage
+    localStorage.setItem('googleAccessToken', googleAccessToken);
+    if(googleRefreshToken) {
+      localStorage.setItem('googleRefreshToken', googleRefreshToken);
+    }
+    
+    return googleAccessToken;
+  } catch(error) {
+    console.error('Error intercambiando código por token:', error);
+    throw error;
+  }
+}
+
+// Verificar si el token es válido
+async function verificarTokenGoogle() {
+  if(!googleAccessToken) return false;
+  
+  try {
+    const response = await fetch(`https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${googleAccessToken}`);
+    return response.ok;
+  } catch(error) {
+    return false;
+  }
+}
+
+// Refrescar token de acceso
+async function refrescarTokenGoogle() {
+  if(!googleRefreshToken) {
+    throw new Error('No hay token de refresco disponible');
+  }
+  
+  try {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_API_KEY,
+        refresh_token: googleRefreshToken,
+        grant_type: 'refresh_token'
+      })
+    });
+    
+    if(!response.ok) {
+      throw new Error(`Error HTTP: ${response.status}`);
+    }
+    
+    const tokenData = await response.json();
+    googleAccessToken = tokenData.access_token;
+    
+    // Guardar nuevo token
+    localStorage.setItem('googleAccessToken', googleAccessToken);
+    
+    return googleAccessToken;
+  } catch(error) {
+    console.error('Error refrescando token:', error);
+    throw error;
+  }
+}
+
+// Subir archivo real a Google Drive
+async function subirArchivoGoogleDrive(blob, filename) {
+  try {
+    // Asegurar que tenemos un token válido
+    let token = googleAccessToken;
+    if(!token || !(await verificarTokenGoogle())) {
+      if(googleRefreshToken) {
+        token = await refrescarTokenGoogle();
+      } else {
+        token = await autenticarGoogleDrive();
+      }
+    }
+    
+    // Crear metadata del archivo
+    const metadata = {
+      name: filename,
+      parents: ['appDataFolder'] // Carpeta de la aplicación
+    };
+    
+    // Crear FormData para la subida
+    const formData = new FormData();
+    formData.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'}));
+    formData.append('file', blob);
+    
+    // Subir archivo
+    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      body: formData
+    });
+    
+    if(!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Error subiendo archivo: ${errorData.error?.message || response.statusText}`);
+    }
+    
+    const result = await response.json();
+    console.log(`Archivo subido exitosamente: ${result.id}`);
+    return result;
+  } catch(error) {
+    console.error('Error subiendo archivo a Google Drive:', error);
+    throw error;
+  }
+}
+
+// Descargar archivo desde Google Drive
+async function descargarArchivoGoogleDrive(filename) {
+  try {
+    // Asegurar que tenemos un token válido
+    let token = googleAccessToken;
+    if(!token || !(await verificarTokenGoogle())) {
+      if(googleRefreshToken) {
+        token = await refrescarTokenGoogle();
+      } else {
+        token = await autenticarGoogleDrive();
+      }
+    }
+    
+    // Buscar archivo por nombre
+    const searchResponse = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${filename}'&spaces=appDataFolder`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if(!searchResponse.ok) {
+      throw new Error(`Error buscando archivo: ${searchResponse.statusText}`);
+    }
+    
+    const searchResult = await searchResponse.json();
+    
+    if(searchResult.files.length === 0) {
+      return null; // Archivo no encontrado
+    }
+    
+    const fileId = searchResult.files[0].id;
+    
+    // Descargar archivo
+    const downloadResponse = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if(!downloadResponse.ok) {
+      throw new Error(`Error descargando archivo: ${downloadResponse.statusText}`);
+    }
+    
+    const blob = await downloadResponse.blob();
+    return blob;
+  } catch(error) {
+    console.error('Error descargando archivo de Google Drive:', error);
+    throw error;
+  }
+}
+
+// Inicializar tokens guardados
+function inicializarTokensGoogle() {
+  googleAccessToken = localStorage.getItem('googleAccessToken');
+  googleRefreshToken = localStorage.getItem('googleRefreshToken');
+}
+
 // ===== BACKUP EN LA NUBE =====
 async function configurarCloud() {
   try {
     const provider = state.cfg.backupCloudProvider || 'google';
-    let authUrl = '';
     
-    switch(provider) {
-      case 'google':
-        authUrl = `https://accounts.google.com/oauth/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=${encodeURIComponent(window.location.origin)}&scope=https://www.googleapis.com/auth/drive.file&response_type=token`;
-        break;
-      case 'dropbox':
-        authUrl = `https://www.dropbox.com/oauth2/authorize?client_id=YOUR_CLIENT_ID&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token&scope=files.metadata.write`;
-        break;
-      case 'onedrive':
-        authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=YOUR_CLIENT_ID&response_type=token&redirect_uri=${encodeURIComponent(window.location.origin)}&scope=files.readwrite`;
-        break;
-    }
-    
-    if(authUrl) {
-      window.open(authUrl, '_blank', 'width=600,height=600');
-      toast('🔐 Ventana de autenticación abierta. Completa la autorización.');
+    if(provider === 'google') {
+      // Inicializar tokens guardados
+      inicializarTokensGoogle();
+      
+      // Intentar autenticar
+      try {
+        await autenticarGoogleDrive();
+        toast('✅ Google Drive configurado correctamente');
+        $('#estado').textContent = 'Google Drive autenticado';
+      } catch(error) {
+        toast('❌ Error configurando Google Drive: ' + error.message);
+        $('#estado').textContent = 'Error en autenticación Google Drive';
+      }
     } else {
-      toast('❌ Proveedor de nube no configurado correctamente');
+      toast('❌ Solo Google Drive está implementado actualmente');
     }
   } catch(error) {
     console.error('Error configurando nube:', error);
@@ -745,7 +1003,7 @@ async function backupCloud() {
       return;
     }
     
-    $('#estado').textContent = 'Creando backup en la nube...';
+    $('#estado').textContent = 'Creando backup en Google Drive...';
     const allActas = await idbAll();
     
     if(allActas.length === 0) {
@@ -769,15 +1027,15 @@ async function backupCloud() {
     const filename = `backup_actas_${new Date().toISOString().slice(0,10)}.json`;
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
     
-    // Simular subida a la nube (en implementación real usarías las APIs)
-    await simularSubidaNube(blob, filename);
+    // Subir archivo real a Google Drive
+    await subirArchivoGoogleDrive(blob, filename);
     
-    toast(`✅ Backup en la nube completado: ${allActas.length} actas`);
-    $('#estado').textContent = `Backup en la nube completado: ${allActas.length} actas`;
+    toast(`✅ Backup en Google Drive completado: ${allActas.length} actas`);
+    $('#estado').textContent = `Backup en Google Drive completado: ${allActas.length} actas`;
   } catch(error) {
     console.error('Error en backup en la nube:', error);
-    toast('❌ Error en backup en la nube');
-    $('#estado').textContent = 'Error en backup en la nube';
+    toast('❌ Error en backup en Google Drive: ' + error.message);
+    $('#estado').textContent = 'Error en backup en Google Drive';
   }
 }
 
@@ -809,7 +1067,8 @@ async function backupCloudIncremental() {
     const filename = `backup_incremental_${new Date().toISOString().slice(0,10)}.json`;
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
     
-    await simularSubidaNube(blob, filename);
+    // Subir archivo real a Google Drive
+    await subirArchivoGoogleDrive(blob, filename);
     localStorage.setItem('ultimoBackupCloud', Date.now().toString());
     
     console.log(`Backup incremental completado: ${actasNuevas.length} actas nuevas`);
@@ -820,24 +1079,31 @@ async function backupCloudIncremental() {
 
 async function sincronizarCloud() {
   try {
-    $('#estado').textContent = 'Sincronizando con la nube...';
+    $('#estado').textContent = 'Sincronizando con Google Drive...';
     
-    // Simular descarga desde la nube
-    const backupRemoto = await simularDescargaNube();
+    // Buscar el backup más reciente en Google Drive
+    const filename = `backup_actas_${new Date().toISOString().slice(0,10)}.json`;
+    const backupRemoto = await descargarArchivoGoogleDrive(filename);
     
-    if(backupRemoto && backupRemoto.actas) {
-      const confirmar = confirm(`¿Restaurar ${backupRemoto.totalActas} actas desde la nube?\n\nEsta acción sobrescribirá las actas locales.`);
-      if(confirmar) {
-        await restaurarBackupDesdeNube(backupRemoto);
+    if(backupRemoto) {
+      const backupData = JSON.parse(await backupRemoto.text());
+      
+      if(backupData && backupData.actas) {
+        const confirmar = confirm(`¿Restaurar ${backupData.totalActas} actas desde Google Drive?\n\nEsta acción sobrescribirá las actas locales.`);
+        if(confirmar) {
+          await restaurarBackupDesdeNube(backupData);
+        }
+      } else {
+        toast('❌ El backup de Google Drive está corrupto');
       }
     } else {
-      toast('❌ No se encontraron backups en la nube');
+      toast('❌ No se encontraron backups en Google Drive');
     }
     
     $('#estado').textContent = 'Sincronización completada';
   } catch(error) {
-    console.error('Error sincronizando con la nube:', error);
-    toast('❌ Error sincronizando con la nube');
+    console.error('Error sincronizando con Google Drive:', error);
+    toast('❌ Error sincronizando con Google Drive: ' + error.message);
     $('#estado').textContent = 'Error en sincronización';
   }
 }
