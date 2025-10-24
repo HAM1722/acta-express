@@ -326,18 +326,6 @@
             <option value="168">Cada semana</option>
           </select>
         </div>
-        <div class="md:col-span-2 flex items-center gap-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
-          <input id="cfgBackupCloud" type="checkbox" class="accent-blue-600" />
-          <label for="cfgBackupCloud" class="text-sm">☁️ Backup en la nube habilitado</label>
-        </div>
-        <div class="md:col-span-2">
-          <label class="lbl">☁️ Proveedor de nube</label>
-          <select id="cfgBackupCloudProvider" class="inp">
-            <option value="google">Google Drive</option>
-            <option value="dropbox">Dropbox</option>
-            <option value="onedrive">OneDrive</option>
-          </select>
-        </div>
         <div class="md:col-span-2 flex items-center gap-2 p-2 bg-purple-50 rounded-lg border border-purple-200">
           <input id="cfgBackupIncremental" type="checkbox" class="accent-purple-600" />
           <label for="cfgBackupIncremental" class="text-sm">🔄 Backup incremental (solo cambios)</label>
@@ -611,12 +599,6 @@
           <button id="btnRestaurarBackup" class="btn btn-warning mobile:w-full mobile:text-sm mobile:py-2">↩️ Restaurar</button>
         </div>
         
-        <!-- Cuarta fila - Backup en la nube -->
-        <div class="grid grid-cols-3 mobile:grid-cols-1 gap-2 mt-3">
-          <button id="btnBackupCloud" class="btn btn-primary mobile:w-full mobile:text-sm mobile:py-2">☁️ Backup Nube</button>
-          <button id="btnConfigurarCloud" class="btn btn-outline mobile:w-full mobile:text-sm mobile:py-2">🔐 Configurar</button>
-          <button id="btnSincronizarCloud" class="btn btn-warning mobile:w-full mobile:text-sm mobile:py-2">🔄 Sincronizar</button>
-        </div>
       </div>
       <p id="estado" class="text-xs text-slate-500 mt-2"></p>
     </section>
